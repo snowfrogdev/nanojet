@@ -26,3 +26,6 @@ lerna-debug.log*
 *.njsproj
 *.sln
 *.sw?
+
+# typescript build cache
+*.tsbuildinfo
