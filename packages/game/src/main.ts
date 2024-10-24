@@ -1,4 +1,4 @@
-import { GameLoop } from "nanojet";
+import { addComponent, addEntity, addInputSystem, addRenderSystem, addUpdateSystem, GameLoop, getComponent } from "nanojet";
 
 // Get the canvas element from the DOM
 const canvas = document.getElementById("gameCanvas") as HTMLCanvasElement;
@@ -12,101 +12,95 @@ if (!context) {
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-const player = {
-  x: 0,
-  y: 0,
-  velocity: { x: 0, y: 0 },
-  width: 32,
-  height: 32,
-  color: "red",
-};
+const loop = new GameLoop(60);
 
-const keysDown = {
+const PositionComponent = (x: number = 0, y: number = 0) => ({ x, y });
+const VelocityComponent = (vx: number = 0, vy: number = 0) => ({ x: vx, y: vy });
+const SpriteComponent = (width: number = 32, height: number = 32, color: string = "red") => ({ width, height, color });
+const TextComponent = (text: string = "", font: string = "16px Arial", color: string = "black") => ({ text, font, color });
+
+const playerEntity = addEntity();
+addComponent(playerEntity, PositionComponent.name, PositionComponent(0, 0));
+addComponent(playerEntity, VelocityComponent.name, VelocityComponent(0, 0));
+addComponent(playerEntity, SpriteComponent.name, SpriteComponent(32, 32, "red"));
+
+const renderFpsEntity = addEntity();
+addComponent(renderFpsEntity, PositionComponent.name, PositionComponent(10, 20));
+addComponent(renderFpsEntity, TextComponent.name, TextComponent("Render FPS: 0"));
+const updateFpsEntity = addEntity();
+addComponent(updateFpsEntity, PositionComponent.name, PositionComponent(10, 40));
+addComponent(updateFpsEntity, TextComponent.name, TextComponent("Update FPS: 0"));
+
+const keysDown: Record<string, boolean> = {
   w: false,
   s: false,
   a: false,
   d: false,
 };
 
-addEventListener("keydown", (event) => {
-  switch (event.key) {
-    case "w":
-      keysDown.w = true;
-      break;
-    case "s":
-      keysDown.s = true;
-      break;
-    case "a":
-      keysDown.a = true;
-      break;
-    case "d":
-      keysDown.d = true;
-      break;
-  }
-});
+addEventListener("keydown", (event) => (keysDown[event.key] = true));
+addEventListener("keyup", (event) => (keysDown[event.key] = false));
 
-addEventListener("keyup", (event) => {
-  switch (event.key) {
-    case "w":
-      keysDown.w = false;
-      break;
-    case "s":
-      keysDown.s = false;
-      break;
-    case "a":
-      keysDown.a = false;
-      break;
-    case "d":
-      keysDown.d = false;
-      break;
-  }
-});
-
-function processInput() {
-  player.velocity.x = 0;
-  player.velocity.y = 0;
+addInputSystem([VelocityComponent.name], (entity) => {
+  const velocity = getComponent(entity, VelocityComponent.name) as ReturnType<typeof VelocityComponent>;
+  velocity.x = 0;
+  velocity.y = 0;
 
   if (keysDown.w) {
-    player.velocity.y = -5;
+    velocity.y = -5;
   }
   if (keysDown.s) {
-    player.velocity.y = 5;
+    velocity.y = 5;
   }
   if (keysDown.a) {
-    player.velocity.x = -5;
+    velocity.x = -5;
   }
   if (keysDown.d) {
-    player.velocity.x = 5;
+    velocity.x = 5;
   }
-}
+});
 
-function update() {
-  // Update game objects here
-  player.x += player.velocity.x;
-  player.y += player.velocity.y;
-}
+addUpdateSystem([PositionComponent.name, VelocityComponent.name], (entity, _deltaTimeInMs) => {
+  const position = getComponent(entity, PositionComponent.name) as ReturnType<typeof PositionComponent>;
+  const velocity = getComponent(entity, VelocityComponent.name) as ReturnType<typeof VelocityComponent>;
 
-function render(extrapolation: number) {
+  position.x += velocity.x;
+  position.y += velocity.y;
+});
+
+addRenderSystem([PositionComponent.name, VelocityComponent.name, SpriteComponent.name], (entity, extrapolation) => {
+  const position = getComponent(entity, PositionComponent.name) as ReturnType<typeof PositionComponent>;
+  const velocity = getComponent(entity, VelocityComponent.name) as ReturnType<typeof VelocityComponent>;
+  const sprite = getComponent(entity, SpriteComponent.name) as ReturnType<typeof SpriteComponent>;
+
   // Clear the canvas
   context.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Render game objects here
-  context.fillStyle = player.color;
+  // Render the entity with extrapolated position
+  context.fillStyle = sprite.color;
   context.fillRect(
-    player.x + player.velocity.x * extrapolation,
-    player.y + player.velocity.y * extrapolation,
-    player.width,
-    player.height
+    position.x + velocity.x * extrapolation,
+    position.y + velocity.y * extrapolation,
+    sprite.width,
+    sprite.height
   );
+});
 
-  // Render the render and update FPS
-  context.fillStyle = "black";
-  context.font = "16px Arial";
-  context.fillText(`Render FPS: ${loop.getRenderFps().toFixed(1)}`, 10, 20);
-  context.fillText(`Update FPS: ${loop.getUpdateFps().toFixed(1)}`, 10, 40);
+addRenderSystem([PositionComponent.name, TextComponent.name], (entity) => {
+  const position = getComponent(entity, PositionComponent.name) as ReturnType<typeof PositionComponent>;
+  const text = getComponent(entity, TextComponent.name) as ReturnType<typeof TextComponent>;
 
-}
+  if (entity === renderFpsEntity) {
+    text.text = `Render FPS: ${loop.getRenderFps().toFixed(1)}`;
+  }
 
-const loop = new GameLoop(60, processInput, update, render);
+  if (entity === updateFpsEntity) {
+    text.text = `Update FPS: ${loop.getUpdateFps().toFixed(1)}`;
+  }
+  
+  context.font = text.font;
+  context.fillStyle = text.color;
+  context.fillText(text.text, position.x, position.y);
+});
 
 loop.start();

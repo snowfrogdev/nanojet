@@ -6,7 +6,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build:engine": "npm run build --workspace=engine",
+    "build:engine": "npm run build --workspace=nanojet",
     "build:game": "npm run build --workspace=game",
     "dev": "npm run dev --workspace=game"
   },

@@ -1,4 +1,5 @@
 import { SECOND_IN_MILLISECONDS } from "./constants";
+import { processInput, render, update } from "./ecs";
 
 export class GameLoop {
   private previousTimeInMs = 0;
@@ -10,12 +11,7 @@ export class GameLoop {
   private updateFrameTimeInMs = 0;
   private fpsFilterStrength = 20;
 
-  constructor(
-    updateFramesPerSeconds: number,
-    private readonly processInput: () => void,
-    private readonly update: (deltaTimeInMs: number) => void,
-    private readonly render: (extrapolation: number) => void
-  ) {
+  constructor(updateFramesPerSeconds: number) {
     this.updateStepInMs = SECOND_IN_MILLISECONDS / updateFramesPerSeconds;
   }
 
@@ -26,6 +22,14 @@ export class GameLoop {
 
   stop() {
     cancelAnimationFrame(this.frameId);
+  }
+
+  getRenderFps(): number {
+    return SECOND_IN_MILLISECONDS / this.renderFrameTimeInMs;
+  }
+
+  getUpdateFps(): number {
+    return SECOND_IN_MILLISECONDS / this.updateFrameTimeInMs;
   }
 
   private loop = () => {
@@ -42,7 +46,7 @@ export class GameLoop {
       this.updateFrameTimeInMs += (updateDeltaTimeInMs - this.updateFrameTimeInMs) / this.fpsFilterStrength;
       this.updatePreviousTimeInMs = updateCurrentTimeInMs;
 
-      this.update(this.updateStepInMs);
+      this.update(updateDeltaTimeInMs);
       this.lagInMs -= this.updateStepInMs;
     }
 
@@ -50,13 +54,17 @@ export class GameLoop {
     this.renderFrameTimeInMs += (deltaTimeInMs - this.renderFrameTimeInMs) / this.fpsFilterStrength;
 
     this.frameId = requestAnimationFrame(this.loop);
-  };
-
-  getRenderFps(): number {
-    return SECOND_IN_MILLISECONDS / this.renderFrameTimeInMs;
   }
 
-  getUpdateFps(): number {
-    return SECOND_IN_MILLISECONDS / this.updateFrameTimeInMs;
+  private processInput() {
+    processInput();
+  }
+
+  private update(deltaTimeInMs: number) {
+    update(deltaTimeInMs);
+  }
+
+  private render(extrapolation: number) {
+    render(extrapolation);
   }
 }
