@@ -1,14 +1,10 @@
 export * from "./game-loop";
-
 export {
   type Entity,
   type InputSystem,
   type UpdateSystem,
   type RenderSystem,
-  addEntity,
-  addComponent,
-  getComponent,
-  addUpdateSystem,
-  addRenderSystem,
-  addInputSystem,
+  World
 } from "./ecs";
+export * from "./components/index";
+export * from "./utils/index";

@@ -1,7 +1,7 @@
 import { SECOND_IN_MILLISECONDS } from "./constants";
-import { processInput, render, update } from "./ecs";
+import { World } from "./ecs";
 
-export class GameLoop {
+export class GameLoop<Components extends Record<string, unknown>> {
   private previousTimeInMs = 0;
   private updatePreviousTimeInMs = 0;
   private frameId = 0;
@@ -11,7 +11,7 @@ export class GameLoop {
   private updateFrameTimeInMs = 0;
   private fpsFilterStrength = 20;
 
-  constructor(updateFramesPerSeconds: number) {
+  constructor(private world: World<Components>, updateFramesPerSeconds: number) {
     this.updateStepInMs = SECOND_IN_MILLISECONDS / updateFramesPerSeconds;
   }
 
@@ -54,17 +54,17 @@ export class GameLoop {
     this.renderFrameTimeInMs += (deltaTimeInMs - this.renderFrameTimeInMs) / this.fpsFilterStrength;
 
     this.frameId = requestAnimationFrame(this.loop);
-  }
+  };
 
   private processInput() {
-    processInput();
+    this.world.processInput();
   }
 
   private update(deltaTimeInMs: number) {
-    update(deltaTimeInMs);
+    this.world.update(deltaTimeInMs);
   }
 
   private render(extrapolation: number) {
-    render(extrapolation);
+    this.world.render(extrapolation);
   }
 }

@@ -1,4 +1,4 @@
-import { addComponent, addEntity, addInputSystem, addRenderSystem, addUpdateSystem, GameLoop, getComponent } from "nanojet";
+import { World, Color, GameLoop, RectangleComponent, TransformComponent, Vec2 } from "nanojet";
 
 // Get the canvas element from the DOM
 const canvas = document.getElementById("gameCanvas") as HTMLCanvasElement;
@@ -12,24 +12,34 @@ if (!context) {
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-const loop = new GameLoop(60);
-
-const PositionComponent = (x: number = 0, y: number = 0) => ({ x, y });
 const VelocityComponent = (vx: number = 0, vy: number = 0) => ({ x: vx, y: vy });
-const SpriteComponent = (width: number = 32, height: number = 32, color: string = "red") => ({ width, height, color });
-const TextComponent = (text: string = "", font: string = "16px Arial", color: string = "black") => ({ text, font, color });
+const TextComponent = (text: string = "", font: string = "16px Arial", color: string = "black") => ({
+  text,
+  font,
+  color,
+});
 
-const playerEntity = addEntity();
-addComponent(playerEntity, PositionComponent.name, PositionComponent(0, 0));
-addComponent(playerEntity, VelocityComponent.name, VelocityComponent(0, 0));
-addComponent(playerEntity, SpriteComponent.name, SpriteComponent(32, 32, "red"));
+type MyComponents = {
+  TransformComponent: TransformComponent;
+  RectangleComponent: RectangleComponent;
+  VelocityComponent: ReturnType<typeof VelocityComponent>;
+  TextComponent: ReturnType<typeof TextComponent>;
+};
 
-const renderFpsEntity = addEntity();
-addComponent(renderFpsEntity, PositionComponent.name, PositionComponent(10, 20));
-addComponent(renderFpsEntity, TextComponent.name, TextComponent("Render FPS: 0"));
-const updateFpsEntity = addEntity();
-addComponent(updateFpsEntity, PositionComponent.name, PositionComponent(10, 40));
-addComponent(updateFpsEntity, TextComponent.name, TextComponent("Update FPS: 0"));
+const world = new World<MyComponents>();
+const loop = new GameLoop(world, 60);
+
+const playerEntity = world.addEntity();
+world.addComponent(playerEntity, "TransformComponent", new TransformComponent());
+world.addComponent(playerEntity, "VelocityComponent", VelocityComponent(0, 0));
+world.addComponent(playerEntity, "RectangleComponent", new RectangleComponent(32, 32, Color.red()));
+
+const renderFpsEntity = world.addEntity();
+world.addComponent(renderFpsEntity, "TransformComponent", new TransformComponent(new Vec2(10, 20)));
+world.addComponent(renderFpsEntity, "TextComponent", TextComponent("Render FPS: 0"));
+const updateFpsEntity = world.addEntity();
+world.addComponent(updateFpsEntity, "TransformComponent", new TransformComponent(new Vec2(10, 40)));
+world.addComponent(updateFpsEntity, "TextComponent", TextComponent("Update FPS: 0"));
 
 const keysDown: Record<string, boolean> = {
   w: false,
@@ -41,8 +51,8 @@ const keysDown: Record<string, boolean> = {
 addEventListener("keydown", (event) => (keysDown[event.key] = true));
 addEventListener("keyup", (event) => (keysDown[event.key] = false));
 
-addInputSystem([VelocityComponent.name], (entity) => {
-  const velocity = getComponent(entity, VelocityComponent.name) as ReturnType<typeof VelocityComponent>;
+world.addInputSystem(["VelocityComponent"], (entity) => {
+  const velocity = world.getComponent(entity, "VelocityComponent")!;
   velocity.x = 0;
   velocity.y = 0;
 
@@ -60,35 +70,35 @@ addInputSystem([VelocityComponent.name], (entity) => {
   }
 });
 
-addUpdateSystem([PositionComponent.name, VelocityComponent.name], (entity, _deltaTimeInMs) => {
-  const position = getComponent(entity, PositionComponent.name) as ReturnType<typeof PositionComponent>;
-  const velocity = getComponent(entity, VelocityComponent.name) as ReturnType<typeof VelocityComponent>;
+world.addUpdateSystem(["TransformComponent", "VelocityComponent"], (entity, _deltaTimeInMs) => {
+  const transform = world.getComponent(entity, "TransformComponent")!;
+  const velocity = world.getComponent(entity, "VelocityComponent")!;
 
-  position.x += velocity.x;
-  position.y += velocity.y;
+  transform.position = new Vec2(transform.position.x + velocity.x, transform.position.y + velocity.y);
 });
 
-addRenderSystem([PositionComponent.name, VelocityComponent.name, SpriteComponent.name], (entity, extrapolation) => {
-  const position = getComponent(entity, PositionComponent.name) as ReturnType<typeof PositionComponent>;
-  const velocity = getComponent(entity, VelocityComponent.name) as ReturnType<typeof VelocityComponent>;
-  const sprite = getComponent(entity, SpriteComponent.name) as ReturnType<typeof SpriteComponent>;
+world.addRenderSystem(["TransformComponent", "VelocityComponent", "RectangleComponent"], (entity, extrapolation) => {
+  const transform = world.getComponent(entity, "TransformComponent")!;
+  const velocity = world.getComponent(entity, "VelocityComponent")!;
+  const rectangle = world.getComponent(entity, "RectangleComponent")!;
 
   // Clear the canvas
   context.clearRect(0, 0, canvas.width, canvas.height);
 
   // Render the entity with extrapolated position
-  context.fillStyle = sprite.color;
+  const color = rectangle.color;
+  context.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${color.a})`;
   context.fillRect(
-    position.x + velocity.x * extrapolation,
-    position.y + velocity.y * extrapolation,
-    sprite.width,
-    sprite.height
+    transform.position.x + velocity.x * extrapolation,
+    transform.position.y + velocity.y * extrapolation,
+    rectangle.width,
+    rectangle.height
   );
 });
 
-addRenderSystem([PositionComponent.name, TextComponent.name], (entity) => {
-  const position = getComponent(entity, PositionComponent.name) as ReturnType<typeof PositionComponent>;
-  const text = getComponent(entity, TextComponent.name) as ReturnType<typeof TextComponent>;
+world.addRenderSystem(["TransformComponent", "TextComponent"], (entity) => {
+  const transform = world.getComponent(entity, "TransformComponent")!;
+  const text = world.getComponent(entity, "TextComponent")!;
 
   if (entity === renderFpsEntity) {
     text.text = `Render FPS: ${loop.getRenderFps().toFixed(1)}`;
@@ -97,10 +107,10 @@ addRenderSystem([PositionComponent.name, TextComponent.name], (entity) => {
   if (entity === updateFpsEntity) {
     text.text = `Update FPS: ${loop.getUpdateFps().toFixed(1)}`;
   }
-  
+
   context.font = text.font;
   context.fillStyle = text.color;
-  context.fillText(text.text, position.x, position.y);
+  context.fillText(text.text, transform.position.x, transform.position.y);
 });
 
 loop.start();
