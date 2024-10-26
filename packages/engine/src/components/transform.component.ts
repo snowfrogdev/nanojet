@@ -59,7 +59,7 @@ export class TransformComponent {
 
   set position(value: Vec2) {
     this._position.set(value.x, value.y);
-    this.isDirty = true;
+    // isDirty is set via onChange
   }
 
   // Scale
@@ -69,7 +69,7 @@ export class TransformComponent {
 
   set scale(value: Vec2) {
     this._scale.set(value.x, value.y);
-    this.isDirty = true;
+    // isDirty is set via onChange
   }
 
   // Rotation
