@@ -1,6 +1,12 @@
 import { Vec2 } from "../utils/vec2";
 
+type Matrix2x3 = [number, number, number, number, number, number];
+
 export class TransformComponent {
+  private _position: Vec2;
+  private _rotation: number; // in radians
+  private _scale: Vec2;
+  private isDirty = true; // Mark as dirty to ensure the matrix is initialized
   /**
    * <pre>
    * [a, b,
@@ -8,48 +14,96 @@ export class TransformComponent {
    *  tx, ty]
    * </pre>
    */
-  private matrix: [number, number, number, number, number, number];
+  private matrix: Matrix2x3;
 
   constructor(position = new Vec2(), scale = new Vec2(1, 1), rotation = 0) {
-    // Identity matrix;
-    this.matrix = [1, 0, 0, 1, 0, 0];
-    this.position = position;
-    this.scale = scale;
-    this.rotation = rotation;
+    const onChange = () => {
+      this.isDirty = true;
+    };
+    position.setOnChange(onChange);
+    this._position = position;
+    scale.setOnChange(onChange);
+    this._scale = scale;
+    this._rotation = rotation;
+    this.matrix = [0, 0, 0, 0, 0, 0];
   }
 
-  /**
-   * Get the position of the transform
-   * @returns A new Vec2 with the position. Mutating this Vec2 will not affect the transform.
-   */
+  private updateMatrix() {
+    if (!this.isDirty) return;
+
+    const cos = Math.cos(this._rotation);
+    const sin = Math.sin(this._rotation);
+    const sx = this._scale.x;
+    const sy = this._scale.y;
+
+    // Construct the affine transformation matrix
+    this.matrix[0] = cos * sx; // a
+    this.matrix[1] = sin * sx; // b
+    this.matrix[2] = -sin * sy; // c
+    this.matrix[3] = cos * sy; // d
+    this.matrix[4] = this._position.x; // tx
+    this.matrix[5] = this._position.y; // ty
+
+    this.isDirty = false;
+  }
+
+  get matrixData(): Matrix2x3 {
+    this.updateMatrix();
+    return this.matrix;
+  }
+
+  // Position
   get position(): Vec2 {
-    return new Vec2(this.matrix[4], this.matrix[5]);
+    return this._position;
   }
 
   set position(value: Vec2) {
-    this.matrix[4] = value.x;
-    this.matrix[5] = value.y;
+    this._position.set(value.x, value.y);
+    this.isDirty = true;
   }
 
+  // Scale
   get scale(): Vec2 {
-    return new Vec2(this.matrix[0], this.matrix[3]);
+    return this._scale;
   }
 
   set scale(value: Vec2) {
-    this.matrix[0] = value.x;
-    this.matrix[3] = value.y;
+    this._scale.set(value.x, value.y);
+    this.isDirty = true;
   }
 
+  // Rotation
   get rotation(): number {
-    return Math.atan2(this.matrix[1], this.matrix[0]);
+    return this._rotation;
   }
 
   set rotation(value: number) {
-    const cos = Math.cos(value);
-    const sin = Math.sin(value);
-    this.matrix[0] = cos;
-    this.matrix[1] = sin;
-    this.matrix[2] = -sin;
-    this.matrix[3] = cos;
+    this._rotation = value % (2 * Math.PI);
+    this.isDirty = true;
+  }
+
+  // Translate
+  translate(dx: number, dy: number) {
+    this._position.x += dx;
+    this._position.y += dy;
+    // isDirty is set via onChange
+  }
+
+  // Rotate
+  rotate(deltaAngle: number) {
+    this.rotation = (this._rotation + deltaAngle) % (2 * Math.PI);
+    // isDirty is set in the rotation setter
+  }
+
+  // Set Position
+  setPosition(x: number, y: number) {
+    this._position.set(x, y);
+    // isDirty is set via onChange
+  }
+
+  // Set Scale
+  setScale(sx: number, sy: number) {
+    this._scale.set(sx, sy);
+    // isDirty is set via onChange
   }
 }

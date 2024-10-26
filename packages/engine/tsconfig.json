@@ -18,7 +18,8 @@
     "isolatedModules": true,
     "moduleDetection": "force",
     "noEmit": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "types": ["@webgpu/types"],
   },
   "include": ["src"],
   "exclude": ["node_modules", "dist"]

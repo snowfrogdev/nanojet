@@ -57,16 +57,16 @@ world.addInputSystem(["VelocityComponent"], (entity) => {
   velocity.y = 0;
 
   if (keysDown.w) {
-    velocity.y = -5;
+    velocity.y = -7;
   }
   if (keysDown.s) {
-    velocity.y = 5;
+    velocity.y = 7;
   }
   if (keysDown.a) {
-    velocity.x = -5;
+    velocity.x = -7;
   }
   if (keysDown.d) {
-    velocity.x = 5;
+    velocity.x = 7;
   }
 });
 
@@ -74,7 +74,7 @@ world.addUpdateSystem(["TransformComponent", "VelocityComponent"], (entity, _del
   const transform = world.getComponent(entity, "TransformComponent")!;
   const velocity = world.getComponent(entity, "VelocityComponent")!;
 
-  transform.position = new Vec2(transform.position.x + velocity.x, transform.position.y + velocity.y);
+  transform.position.set(transform.position.x + velocity.x, transform.position.y + velocity.y);
 });
 
 world.addRenderSystem(["TransformComponent", "VelocityComponent", "RectangleComponent"], (entity, extrapolation) => {
