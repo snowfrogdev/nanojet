@@ -1,12 +1,7 @@
-import { World, Color, GameLoop, RectangleComponent, TransformComponent, Vec2 } from "nanojet";
+import { World, Color, GameLoop, RectangleComponent, TransformComponent, Vec2, renderRectangleSystem } from "nanojet";
 
 // Get the canvas element from the DOM
 const canvas = document.getElementById("gameCanvas") as HTMLCanvasElement;
-const context = canvas.getContext("2d")!;
-
-if (!context) {
-  throw new Error("Unable to get 2D context");
-}
 
 // Set the canvas dimensions
 canvas.width = window.innerWidth;
@@ -26,8 +21,9 @@ type MyComponents = {
   TextComponent: ReturnType<typeof TextComponent>;
 };
 
-const world = new World<MyComponents>();
-const loop = new GameLoop(world, 60);
+const world = new World();
+const loop = new GameLoop(world, 60, canvas);
+const initialization = loop.init();
 
 const playerEntity = world.addEntity();
 world.addComponent(playerEntity, "TransformComponent", new TransformComponent());
@@ -51,8 +47,8 @@ const keysDown: Record<string, boolean> = {
 addEventListener("keydown", (event) => (keysDown[event.key] = true));
 addEventListener("keyup", (event) => (keysDown[event.key] = false));
 
-world.addInputSystem(["VelocityComponent"], (entity) => {
-  const velocity = world.getComponent(entity, "VelocityComponent")!;
+world.addInputSystem(["VelocityComponent"], (world, entity) => {
+  const velocity = world.getComponent<ReturnType<typeof VelocityComponent>>(entity, VelocityComponent.name)!;
   velocity.x = 0;
   velocity.y = 0;
 
@@ -68,16 +64,23 @@ world.addInputSystem(["VelocityComponent"], (entity) => {
   if (keysDown.d) {
     velocity.x = 7;
   }
+
+  // Normalize the velocity to handle diagonal movement
+  if (velocity.x !== 0 && velocity.y !== 0) {
+    const magnitude = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y);
+    velocity.x = (velocity.x / magnitude) * 7;
+    velocity.y = (velocity.y / magnitude) * 7;
+  }
 });
 
-world.addUpdateSystem(["TransformComponent", "VelocityComponent"], (entity, _deltaTimeInMs) => {
-  const transform = world.getComponent(entity, "TransformComponent")!;
-  const velocity = world.getComponent(entity, "VelocityComponent")!;
+world.addUpdateSystem(["TransformComponent", "VelocityComponent"], (world, entity, _deltaTimeInMs) => {
+  const transform = world.getComponent<TransformComponent>(entity, TransformComponent.name)!;
+  const velocity = world.getComponent<ReturnType<typeof VelocityComponent>>(entity, VelocityComponent.name)!;
 
   transform.position.set(transform.position.x + velocity.x, transform.position.y + velocity.y);
 });
 
-world.addRenderSystem(["TransformComponent", "VelocityComponent", "RectangleComponent"], (entity, extrapolation) => {
+/* world.addRenderSystem(["TransformComponent", "VelocityComponent", "RectangleComponent"], (world, entity, extrapolation) => {
   const transform = world.getComponent(entity, "TransformComponent")!;
   const velocity = world.getComponent(entity, "VelocityComponent")!;
   const rectangle = world.getComponent(entity, "RectangleComponent")!;
@@ -94,9 +97,9 @@ world.addRenderSystem(["TransformComponent", "VelocityComponent", "RectangleComp
     rectangle.width,
     rectangle.height
   );
-});
+}); */
 
-world.addRenderSystem(["TransformComponent", "TextComponent"], (entity) => {
+/* world.addRenderSystem(["TransformComponent", "TextComponent"], (world, entity) => {
   const transform = world.getComponent(entity, "TransformComponent")!;
   const text = world.getComponent(entity, "TextComponent")!;
 
@@ -111,6 +114,9 @@ world.addRenderSystem(["TransformComponent", "TextComponent"], (entity) => {
   context.font = text.font;
   context.fillStyle = text.color;
   context.fillText(text.text, transform.position.x, transform.position.y);
-});
+}); */
 
+world.addRenderSystem(["TransformComponent", "RectangleComponent"], renderRectangleSystem);
+
+await initialization;
 loop.start();

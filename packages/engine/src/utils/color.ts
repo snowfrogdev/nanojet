@@ -11,4 +11,8 @@ export class Color {
   static red(alpha: number = 1): Color {
     return new Color(255, 0, 0, alpha);
   }
+
+  toFloat32Array(): Float32Array {
+    return new Float32Array([this.r / 255, this.g / 255, this.b / 255, this.a]);
+  }
 }

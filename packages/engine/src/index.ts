@@ -7,4 +7,5 @@ export {
   World
 } from "./ecs";
 export * from "./components/index";
+export * from "./systems/index";
 export * from "./utils/index";

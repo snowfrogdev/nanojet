@@ -1,3 +1,4 @@
+import { Matrix3x3 } from "../utils/mat3";
 import { Vec2 } from "../utils/vec2";
 
 type Matrix2x3 = [number, number, number, number, number, number];
@@ -47,9 +48,14 @@ export class TransformComponent {
     this.isDirty = false;
   }
 
-  get matrixData(): Matrix2x3 {
+  get matrix2x3(): Matrix2x3 {
     this.updateMatrix();
     return this.matrix;
+  }
+
+  get matrix3x3(): Matrix3x3 {
+    this.updateMatrix();
+    return [this.matrix[0], this.matrix[1], 0, this.matrix[2], this.matrix[3], 0, this.matrix[4], this.matrix[5], 1];
   }
 
   // Position

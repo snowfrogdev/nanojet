@@ -1,7 +1,8 @@
 import { SECOND_IN_MILLISECONDS } from "./constants";
 import { World } from "./ecs";
+import { Renderer } from "./renderer";
 
-export class GameLoop<Components extends Record<string, unknown>> {
+export class GameLoop {
   private previousTimeInMs = 0;
   private updatePreviousTimeInMs = 0;
   private frameId = 0;
@@ -10,9 +11,15 @@ export class GameLoop<Components extends Record<string, unknown>> {
   private renderFrameTimeInMs = 0;
   private updateFrameTimeInMs = 0;
   private fpsFilterStrength = 20;
+  private renderer: Renderer;
 
-  constructor(private world: World<Components>, updateFramesPerSeconds: number) {
+  constructor(private world: World, updateFramesPerSeconds: number, canvas: HTMLCanvasElement) {
     this.updateStepInMs = SECOND_IN_MILLISECONDS / updateFramesPerSeconds;
+    this.renderer = new Renderer(canvas);
+  }
+
+  async init() {
+    await this.renderer.initWebGPU();
   }
 
   start() {
@@ -65,6 +72,8 @@ export class GameLoop<Components extends Record<string, unknown>> {
   }
 
   private render(extrapolation: number) {
-    this.world.render(extrapolation);
+    this.renderer.beginFrame();
+    this.world.render(extrapolation, this.renderer);
+    this.renderer.endFrame();
   }
 }
