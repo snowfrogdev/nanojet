@@ -23,5 +23,6 @@ fn vs(vert: Vertex) -> VSOutput {
 
 @fragment
 fn fs(vsOut: VSOutput) -> @location(0) vec4f {
-  return uni.color;
+  //return uni.color;
+  return vec4f(1.0, 0.0, 0.0, 1.0);
 }

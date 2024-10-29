@@ -53,7 +53,7 @@ export class TransformComponent {
     return this.matrix;
   }
 
-  get matrix3x3(): Matrix3x3 {
+  getMatrix3x3(): Matrix3x3 {
     this.updateMatrix();
     return [this.matrix[0], this.matrix[1], 0, this.matrix[2], this.matrix[3], 0, this.matrix[4], this.matrix[5], 1];
   }

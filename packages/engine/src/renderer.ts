@@ -1,22 +1,25 @@
-import shaderSource from "./basic.wgsl?raw";
+import shaderSource from "./shader.wgsl?raw";
 import { Color } from "./utils";
 import { Matrix3x3, multiply, projection } from "./utils/mat3";
+
+type GeometryBuffers = {
+  vertexBuffer: GPUBuffer;
+  indexBuffer: GPUBuffer;
+  numIndices: number;
+};
 
 export class Renderer {
   private context!: GPUCanvasContext;
   private device!: GPUDevice;
   private pipeline!: GPURenderPipeline;
-  private uniformBuffer!: GPUBuffer;
-  private uniformBindGroup!: GPUBindGroup;
-  private vertexBuffer!: GPUBuffer;
-  private indexBuffer!: GPUBuffer;
+  private uniformBindGroupLayout!: GPUBindGroupLayout;
   private renderPassEncoder!: GPURenderPassEncoder;
   private commandEncoder!: GPUCommandEncoder;
   private projectionMatrix!: Matrix3x3;
-  private uniformValues!: Float32Array;
-  private kColorOffset = 0; // Offset in floats
   private kModelMatrixOffset = 4; // Offset in floats after color (vec4f)
   private uniformBufferSize = 4 * 4 + 3 * 16; // Total size in bytes (vec4f + mat3x3f)
+
+  private geometryCache = new Map<string, GeometryBuffers>();
 
   constructor(private canvas: HTMLCanvasElement) {
     this.updateProjectionMatrix();
@@ -35,6 +38,9 @@ export class Renderer {
     }
 
     this.device = device;
+    this.device.onuncapturederror = (event) => {
+      console.error("Uncaptured WebGPU error:", event.error);
+    };
 
     const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
 
@@ -45,18 +51,45 @@ export class Renderer {
       alphaMode: "premultiplied",
     });
 
+    // Create uniform bind group layout
+    this.uniformBindGroupLayout = this.device.createBindGroupLayout({
+      entries: [
+        {
+          binding: 0,
+          visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+          buffer: { type: "uniform" },
+        },
+      ],
+    });
+
     const shaderModule = this.device.createShaderModule({
       code: shaderSource,
     });
 
+    // Check for shader compilation errors
+    const compilationInfo = await shaderModule.getCompilationInfo();
+    if (compilationInfo.messages.length > 0) {
+      for (const msg of compilationInfo.messages) {
+        if (msg.type === "error") {
+          console.error("Shader compilation error:", msg.message);
+        } else {
+          console.warn("Shader compilation warning:", msg.message);
+        }
+      }
+      // If there are errors, throw an exception to prevent pipeline creation
+      throw new Error("Shader compilation failed");
+    }
+
     this.pipeline = this.device.createRenderPipeline({
-      layout: "auto",
+      layout: this.device.createPipelineLayout({
+        bindGroupLayouts: [this.uniformBindGroupLayout],
+      }),
       vertex: {
         module: shaderModule,
         entryPoint: "vs",
         buffers: [
           {
-            arrayStride: 2 * 4, // two float32 per vertex
+            arrayStride: 2 * 4, // two float32 per vertex position (vec2f)
             attributes: [
               {
                 shaderLocation: 0,
@@ -77,57 +110,6 @@ export class Renderer {
         ],
       },
     });
-
-    this.uniformBuffer = this.device.createBuffer({
-      size: this.uniformBufferSize,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
-    this.uniformValues = new Float32Array(this.uniformBufferSize / 4); // Number of floats
-
-    this.uniformBindGroup = this.device.createBindGroup({
-      layout: this.pipeline.getBindGroupLayout(0),
-      entries: [
-        {
-          binding: 0,
-          resource: {
-            buffer: this.uniformBuffer,
-          },
-        },
-      ],
-    });
-
-    const vertexData = new Float32Array([
-      0,
-      0, // bottom-left
-      1,
-      0, // bottom-right
-      1,
-      1, // top-right
-      0,
-      1, // top-left
-    ]);
-
-    this.vertexBuffer = this.device.createBuffer({
-      size: vertexData.byteLength,
-      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-    });
-
-    this.device.queue.writeBuffer(this.vertexBuffer, 0, vertexData);
-
-    const indexData = new Uint16Array([
-      0,
-      1,
-      2, // first triangle
-      2,
-      3,
-      0, // second triangle
-    ]);
-
-    this.indexBuffer = this.device.createBuffer({
-      size: indexData.byteLength,
-      usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
-    });
-    this.device.queue.writeBuffer(this.indexBuffer, 0, indexData);
 
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
@@ -162,10 +144,6 @@ export class Renderer {
         },
       ],
     });
-
-    this.renderPassEncoder.setPipeline(this.pipeline);
-    this.renderPassEncoder.setVertexBuffer(0, this.vertexBuffer);
-    this.renderPassEncoder.setIndexBuffer(this.indexBuffer, "uint16");
   }
 
   endFrame() {
@@ -174,21 +152,71 @@ export class Renderer {
     this.device.queue.submit([commandBuffer]);
   }
 
-  drawRectangle(modelMatrix: Matrix3x3, color: Color) {
+  draw(geometryId: string, vertexData: Float32Array, indexData: Uint16Array, modelMatrix: Matrix3x3, color: Color) {
     const combinedMatrix = multiply(this.projectionMatrix, modelMatrix);
 
-    this.uniformValues.set(color.toFloat32Array(), this.kColorOffset);
+    const uniformValues = new Float32Array(16 /* Number of floats */);
+    uniformValues.set(color.toFloat32Array(), 0);
 
     // copy the combined matrix into the uniform buffer, adding padding to make it 4x4
-    this.uniformValues.set(
+    uniformValues.set(
       [...combinedMatrix.slice(0, 3), 0, ...combinedMatrix.slice(3, 6), 0, ...combinedMatrix.slice(6, 9), 0],
       this.kModelMatrixOffset
     );
 
-    this.device.queue.writeBuffer(this.uniformBuffer, 0, this.uniformValues.buffer);
+    const uniformBuffer = this.device.createBuffer({
+      size: this.uniformBufferSize,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+    this.device.queue.writeBuffer(uniformBuffer, 0, uniformValues.buffer);
 
-    this.renderPassEncoder.setBindGroup(0, this.uniformBindGroup);
+    const uniformBindGroup = this.device.createBindGroup({
+      layout: this.uniformBindGroupLayout,
+      entries: [
+        {
+          binding: 0,
+          resource: {
+            buffer: uniformBuffer,
+          },
+        },
+      ],
+    });
 
-    this.renderPassEncoder.drawIndexed(6, 1, 0, 0, 0);
+    const { vertexBuffer, indexBuffer, numIndices } = this.getGeometryBuffers(geometryId, vertexData, indexData);
+
+    this.renderPassEncoder.setPipeline(this.pipeline);
+    this.renderPassEncoder.setVertexBuffer(0, vertexBuffer);
+    this.renderPassEncoder.setIndexBuffer(indexBuffer, "uint16");
+    this.renderPassEncoder.setBindGroup(0, uniformBindGroup);
+
+    this.renderPassEncoder.drawIndexed(numIndices, 1, 0, 0, 0);
+  }
+
+  private getGeometryBuffers(geometryId: string, vertexData: Float32Array, indexData: Uint16Array): GeometryBuffers {
+    if (this.geometryCache.has(geometryId)) {
+      return this.geometryCache.get(geometryId)!;
+    }
+
+    const vertexBuffer = this.device.createBuffer({
+      size: vertexData.byteLength,
+      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+    });
+    this.device.queue.writeBuffer(vertexBuffer, 0, vertexData);
+
+    const indexBuffer = this.device.createBuffer({
+      size: indexData.byteLength,
+      usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
+    });
+    this.device.queue.writeBuffer(indexBuffer, 0, indexData);
+
+    const geometryBuffers: GeometryBuffers = {
+      vertexBuffer,
+      indexBuffer,
+      numIndices: indexData.length,
+    };
+
+    this.geometryCache.set(geometryId, geometryBuffers);
+
+    return geometryBuffers;
   }
 }

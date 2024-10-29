@@ -1,122 +1,112 @@
-import { World, Color, GameLoop, RectangleComponent, TransformComponent, Vec2, renderRectangleSystem } from "nanojet";
+import {
+  World,
+  GameLoop,
+  TransformComponent,
+  CircleComponent,
+  Color,
+  RectangleComponent,
+  Vec2,
+  UpdateSystem,
+  VelocityComponent,
+  Entity,
+  movementSystem,
+  renderCircleSystem,
+  renderRectangleSystem,
+} from "nanojet";
 
 // Get the canvas element from the DOM
 const canvas = document.getElementById("gameCanvas") as HTMLCanvasElement;
-
-// Set the canvas dimensions
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
-
-const VelocityComponent = (vx: number = 0, vy: number = 0) => ({ x: vx, y: vy });
-const TextComponent = (text: string = "", font: string = "16px Arial", color: string = "black") => ({
-  text,
-  font,
-  color,
-});
-
-type MyComponents = {
-  TransformComponent: TransformComponent;
-  RectangleComponent: RectangleComponent;
-  VelocityComponent: ReturnType<typeof VelocityComponent>;
-  TextComponent: ReturnType<typeof TextComponent>;
-};
 
 const world = new World();
 const loop = new GameLoop(world, 60, canvas);
 const initialization = loop.init();
 
-const playerEntity = world.addEntity();
-world.addComponent(playerEntity, "TransformComponent", new TransformComponent());
-world.addComponent(playerEntity, "VelocityComponent", VelocityComponent(0, 0));
-world.addComponent(playerEntity, "RectangleComponent", new RectangleComponent(32, 32, Color.red()));
+export const boundarySystem: UpdateSystem = (world: World, entity: Entity, deltaTimeInMs: number) => {
+  const transform = world.getComponent<TransformComponent>(entity, "TransformComponent")!;
+  const velocity = world.getComponent<VelocityComponent>(entity, "VelocityComponent")!;
 
-const renderFpsEntity = world.addEntity();
-world.addComponent(renderFpsEntity, "TransformComponent", new TransformComponent(new Vec2(10, 20)));
-world.addComponent(renderFpsEntity, "TextComponent", TextComponent("Render FPS: 0"));
-const updateFpsEntity = world.addEntity();
-world.addComponent(updateFpsEntity, "TransformComponent", new TransformComponent(new Vec2(10, 40)));
-world.addComponent(updateFpsEntity, "TextComponent", TextComponent("Update FPS: 0"));
+  const canvasWidth = canvas.width;
+  const canvasHeight = canvas.height;
 
-const keysDown: Record<string, boolean> = {
-  w: false,
-  s: false,
-  a: false,
-  d: false,
+  // Determine entity dimensions
+  let entityWidth = 0;
+  let entityHeight = 0;
+
+  const rectangle = world.getComponent<RectangleComponent>(entity, "RectangleComponent");
+  if (rectangle) {
+    entityWidth = rectangle.width;
+    entityHeight = rectangle.height;
+  } else {
+    const circle = world.getComponent<CircleComponent>(entity, "CircleComponent");
+    if (circle) {
+      entityWidth = circle.radius * 2;
+      entityHeight = circle.radius * 2;
+    }
+  }
+
+  // Bounce off the edges
+  if (transform.position.x < 0 || transform.position.x + entityWidth > canvasWidth) {
+    velocity.value.x *= -1;
+    transform.position.x = Math.max(0, Math.min(transform.position.x, canvasWidth - entityWidth));
+  }
+
+  if (transform.position.y < 0 || transform.position.y + entityHeight > canvasHeight) {
+    velocity.value.y *= -1;
+    transform.position.y = Math.max(0, Math.min(transform.position.y, canvasHeight - entityHeight));
+  }
 };
 
-addEventListener("keydown", (event) => (keysDown[event.key] = true));
-addEventListener("keyup", (event) => (keysDown[event.key] = false));
+const numEntities = 5;
 
-world.addInputSystem(["VelocityComponent"], (world, entity) => {
-  const velocity = world.getComponent<ReturnType<typeof VelocityComponent>>(entity, VelocityComponent.name)!;
-  velocity.x = 0;
-  velocity.y = 0;
+function getRandom(min: number, max: number): number {
+  return Math.random() * (max - min) + min;
+}
 
-  if (keysDown.w) {
-    velocity.y = -7;
-  }
-  if (keysDown.s) {
-    velocity.y = 7;
-  }
-  if (keysDown.a) {
-    velocity.x = -7;
-  }
-  if (keysDown.d) {
-    velocity.x = 7;
-  }
+for (let i = 0; i < numEntities; i++) {
+  const entity = world.addEntity();
 
-  // Normalize the velocity to handle diagonal movement
-  if (velocity.x !== 0 && velocity.y !== 0) {
-    const magnitude = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y);
-    velocity.x = (velocity.x / magnitude) * 7;
-    velocity.y = (velocity.y / magnitude) * 7;
-  }
-});
+  // Randomly decide whether to create a rectangle or circle
+  const isRectangle = Math.random() < 0.5;
 
-world.addUpdateSystem(["TransformComponent", "VelocityComponent"], (world, entity, _deltaTimeInMs) => {
-  const transform = world.getComponent<TransformComponent>(entity, TransformComponent.name)!;
-  const velocity = world.getComponent<ReturnType<typeof VelocityComponent>>(entity, VelocityComponent.name)!;
+  // Random position within canvas
+  const position = new Vec2(getRandom(0, canvas.width), getRandom(0, canvas.height));
 
-  transform.position.set(transform.position.x + velocity.x, transform.position.y + velocity.y);
-});
-
-/* world.addRenderSystem(["TransformComponent", "VelocityComponent", "RectangleComponent"], (world, entity, extrapolation) => {
-  const transform = world.getComponent(entity, "TransformComponent")!;
-  const velocity = world.getComponent(entity, "VelocityComponent")!;
-  const rectangle = world.getComponent(entity, "RectangleComponent")!;
-
-  // Clear the canvas
-  context.clearRect(0, 0, canvas.width, canvas.height);
-
-  // Render the entity with extrapolated position
-  const color = rectangle.color;
-  context.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${color.a})`;
-  context.fillRect(
-    transform.position.x + velocity.x * extrapolation,
-    transform.position.y + velocity.y * extrapolation,
-    rectangle.width,
-    rectangle.height
+  // Random velocity
+  const velocity = new Vec2(
+    getRandom(-100, 100), // pixels per second
+    getRandom(-100, 100)
   );
-}); */
 
-/* world.addRenderSystem(["TransformComponent", "TextComponent"], (world, entity) => {
-  const transform = world.getComponent(entity, "TransformComponent")!;
-  const text = world.getComponent(entity, "TextComponent")!;
+  // Random color
+  const color = new Color(getRandom(0, 255), getRandom(0, 255), getRandom(0, 255), getRandom(0.1, 0.9));
 
-  if (entity === renderFpsEntity) {
-    text.text = `Render FPS: ${loop.getRenderFps().toFixed(1)}`;
+  // Add TransformComponent and VelocityComponent
+  world.addComponent(entity, "TransformComponent", new TransformComponent(position));
+  world.addComponent(entity, "VelocityComponent", new VelocityComponent(velocity));
+
+  if (isRectangle) {
+    // Random width and height
+    const width = getRandom(20, 50);
+    const height = getRandom(20, 50);
+
+    // Add RectangleComponent
+    world.addComponent(entity, "RectangleComponent", new RectangleComponent(width, height, color));
+  } else {
+    // Random radius
+    const radius = getRandom(10, 25);
+
+    // Add CircleComponent
+    world.addComponent(entity, "CircleComponent", new CircleComponent(radius, color));
   }
+}
 
-  if (entity === updateFpsEntity) {
-    text.text = `Update FPS: ${loop.getUpdateFps().toFixed(1)}`;
-  }
-
-  context.font = text.font;
-  context.fillStyle = text.color;
-  context.fillText(text.text, transform.position.x, transform.position.y);
-}); */
-
+// Add the render systems
 world.addRenderSystem(["TransformComponent", "RectangleComponent"], renderRectangleSystem);
+world.addRenderSystem(["TransformComponent", "CircleComponent"], renderCircleSystem);
+
+// Add the update systems
+world.addUpdateSystem(["TransformComponent", "VelocityComponent"], movementSystem);
+world.addUpdateSystem(["TransformComponent", "VelocityComponent"], boundarySystem);
 
 await initialization;
 loop.start();

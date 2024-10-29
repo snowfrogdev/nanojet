@@ -7,7 +7,13 @@ export const renderRectangleSystem: RenderSystem = (world, entity, extrapolation
   const rectangle = world.getComponent<RectangleComponent>(entity, RectangleComponent.name)!;
 
   // Apply scaling based on the rectangle size
-  const modelMatrix = scale(transform.matrix3x3, rectangle.width, rectangle.height);
+  const modelMatrix = scale(transform.getMatrix3x3(), rectangle.width, rectangle.height);
 
-  renderer.drawRectangle(modelMatrix, rectangle.color);
+  renderer.draw(
+    RectangleComponent.geometryId,
+    RectangleComponent.vertexData,
+    RectangleComponent.indexData,
+    modelMatrix,
+    rectangle.color
+  );
 };
