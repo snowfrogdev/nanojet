@@ -26,13 +26,7 @@ export class Renderer {
   private geometryCache = new Map<string, GeometryBuffers>();
   gpuTime: number = 0;
 
-  constructor(private canvas: HTMLCanvasElement) {
-    this.updateProjectionMatrix();
-  }
-
-  private updateProjectionMatrix() {
-    this.projectionMatrix = projection(this.canvas.width, this.canvas.height);
-  }
+  constructor(private canvas: HTMLCanvasElement) {}
 
   async initWebGPU() {
     const adapter = await navigator.gpu?.requestAdapter();
@@ -45,6 +39,10 @@ export class Renderer {
     }
 
     this.device = device;
+
+    this.updateCanvasSize();
+    this.updateProjectionMatrix();
+    
     this.device.onuncapturederror = (event) => {
       console.error("Uncaptured WebGPU error:", event.error);
     };
@@ -151,6 +149,19 @@ export class Renderer {
     }
   }
 
+  private updateCanvasSize() {
+    const dpr = Math.min(window.devicePixelRatio, 2);
+    const rect = this.canvas.getBoundingClientRect();
+    const width = rect.width * dpr;
+    const height = rect.height * dpr;
+    this.canvas.width = Math.max(1, Math.min(width, this.device.limits.maxTextureDimension2D));
+    this.canvas.height = Math.max(1, Math.min(height, this.device.limits.maxTextureDimension2D));
+  }
+
+  private updateProjectionMatrix() {
+    this.projectionMatrix = projection(this.canvas.width, this.canvas.height);
+  }
+
   beginFrame() {
     const textureView = this.context.getCurrentTexture().createView();
     this.commandEncoder = this.device.createCommandEncoder();
@@ -179,7 +190,7 @@ export class Renderer {
 
     if (this.canTimestamp) {
       this.commandEncoder.resolveQuerySet(this.querySet, 0, this.querySet.count, this.resolveBuffer, 0);
-      if (this.resultBuffer.mapState === 'unmapped') {
+      if (this.resultBuffer.mapState === "unmapped") {
         this.commandEncoder.copyBufferToBuffer(this.resolveBuffer, 0, this.resultBuffer, 0, this.resultBuffer.size);
       }
     }
@@ -187,7 +198,7 @@ export class Renderer {
     const commandBuffer = this.commandEncoder.finish();
     this.device.queue.submit([commandBuffer]);
 
-    if (this.canTimestamp && this.resultBuffer.mapState === 'unmapped') {
+    if (this.canTimestamp && this.resultBuffer.mapState === "unmapped") {
       this.resultBuffer.mapAsync(GPUMapMode.READ).then(() => {
         const times = new BigInt64Array(this.resultBuffer.getMappedRange());
         this.gpuTime += (Number(times[1] - times[0]) - this.gpuTime) / 100;

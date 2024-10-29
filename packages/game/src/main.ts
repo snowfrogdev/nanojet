@@ -21,7 +21,7 @@ const canvas = document.getElementById("gameCanvas") as HTMLCanvasElement;
 
 const world = new World();
 const loop = new GameLoop(world, 60, canvas);
-const initialization = loop.init();
+await loop.init();
 
 const boundarySystem: UpdateSystem = (world: World, entity: Entity, deltaTimeInMs: number) => {
   // TODO: Just being lazy here and shoving performance timing code in here but it should be extracted
@@ -150,5 +150,4 @@ world.addUpdateSystem(["TransformComponent", "VelocityComponent", "RectangleComp
 world.addUpdateSystem(["TransformComponent", "VelocityComponent", "CircleComponent"], boundarySystem);
 world.addUpdateSystem(["TransformComponent", "AngularVelocityComponent"], rotationSystem);
 
-await initialization;
 loop.start();
