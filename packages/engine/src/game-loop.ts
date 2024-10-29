@@ -39,6 +39,10 @@ export class GameLoop {
     return SECOND_IN_MILLISECONDS / this.updateFrameTimeInMs;
   }
 
+  getGpuTime() {
+    return this.renderer.gpuTime;
+  }
+
   private loop = () => {
     const currentTimeInMs = performance.now();
     const deltaTimeInMs = currentTimeInMs - this.previousTimeInMs;

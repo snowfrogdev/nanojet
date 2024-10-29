@@ -11,7 +11,11 @@ type GeometryBuffers = {
 export class Renderer {
   private context!: GPUCanvasContext;
   private device!: GPUDevice;
+  private canTimestamp = false;
   private pipeline!: GPURenderPipeline;
+  private querySet!: GPUQuerySet;
+  private resolveBuffer!: GPUBuffer;
+  private resultBuffer!: GPUBuffer;
   private uniformBindGroupLayout!: GPUBindGroupLayout;
   private renderPassEncoder!: GPURenderPassEncoder;
   private commandEncoder!: GPUCommandEncoder;
@@ -20,6 +24,7 @@ export class Renderer {
   private uniformBufferSize = 4 * 4 + 3 * 16; // Total size in bytes (vec4f + mat3x3f)
 
   private geometryCache = new Map<string, GeometryBuffers>();
+  gpuTime: number = 0;
 
   constructor(private canvas: HTMLCanvasElement) {
     this.updateProjectionMatrix();
@@ -30,11 +35,13 @@ export class Renderer {
   }
 
   async initWebGPU() {
-    const adapter = await navigator.gpu.requestAdapter();
-    const device = await adapter?.requestDevice();
-
+    const adapter = await navigator.gpu?.requestAdapter();
+    this.canTimestamp = Boolean(adapter?.features.has("timestamp-query"));
+    const device = await adapter?.requestDevice({
+      requiredFeatures: [...((this.canTimestamp ? ["timestamp-query"] : []) as GPUFeatureName[])],
+    });
     if (!device) {
-      throw new Error("need a browser that supports WebGPU");
+      throw new Error("need a browser with WebGPU support. See https://caniuse.com/webgpu");
     }
 
     this.device = device;
@@ -111,6 +118,21 @@ export class Renderer {
       },
     });
 
+    if (this.canTimestamp) {
+      this.querySet = device.createQuerySet({
+        type: "timestamp",
+        count: 2,
+      });
+      this.resolveBuffer = device.createBuffer({
+        size: this.querySet.count * 8,
+        usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC,
+      });
+      this.resultBuffer = device.createBuffer({
+        size: this.resolveBuffer.size,
+        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+      });
+    }
+
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const dpr = Math.min(devicePixelRatio, 2);
@@ -131,7 +153,6 @@ export class Renderer {
 
   beginFrame() {
     const textureView = this.context.getCurrentTexture().createView();
-
     this.commandEncoder = this.device.createCommandEncoder();
 
     this.renderPassEncoder = this.commandEncoder.beginRenderPass({
@@ -143,13 +164,36 @@ export class Renderer {
           storeOp: "store",
         },
       ],
+      ...(this.canTimestamp && {
+        timestampWrites: {
+          querySet: this.querySet,
+          beginningOfPassWriteIndex: 0,
+          endOfPassWriteIndex: 1,
+        },
+      }),
     });
   }
 
   endFrame() {
     this.renderPassEncoder.end();
+
+    if (this.canTimestamp) {
+      this.commandEncoder.resolveQuerySet(this.querySet, 0, this.querySet.count, this.resolveBuffer, 0);
+      if (this.resultBuffer.mapState === 'unmapped') {
+        this.commandEncoder.copyBufferToBuffer(this.resolveBuffer, 0, this.resultBuffer, 0, this.resultBuffer.size);
+      }
+    }
+
     const commandBuffer = this.commandEncoder.finish();
     this.device.queue.submit([commandBuffer]);
+
+    if (this.canTimestamp && this.resultBuffer.mapState === 'unmapped') {
+      this.resultBuffer.mapAsync(GPUMapMode.READ).then(() => {
+        const times = new BigInt64Array(this.resultBuffer.getMappedRange());
+        this.gpuTime += (Number(times[1] - times[0]) - this.gpuTime) / 100;
+        this.resultBuffer.unmap();
+      });
+    }
   }
 
   draw(geometryId: string, vertexData: Float32Array, indexData: Uint16Array, modelMatrix: Matrix3x3, color: Color) {

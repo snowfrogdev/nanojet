@@ -24,6 +24,15 @@ const loop = new GameLoop(world, 60, canvas);
 const initialization = loop.init();
 
 const boundarySystem: UpdateSystem = (world: World, entity: Entity, deltaTimeInMs: number) => {
+  // TODO: Just being lazy here and shoving performance timing code in here but it should be extracted
+  // to the game loop or some other performance tracking system
+  const infoElement = document.getElementById("info") as HTMLPreElement;
+  infoElement.textContent = `\
+  fps: ${loop.getRenderFps().toFixed(1)}
+  ups: ${loop.getUpdateFps().toFixed(1)}
+  gpu: ${loop.getGpuTime() !== 0 ? `${(loop.getGpuTime() / 1000).toFixed(1)}µs` : "N/A"}
+  `;
+
   const transform = world.getComponent<TransformComponent>(entity, "TransformComponent")!;
   const velocity = world.getComponent<VelocityComponent>(entity, "VelocityComponent")!;
 
@@ -67,7 +76,7 @@ const boundarySystem: UpdateSystem = (world: World, entity: Entity, deltaTimeInM
   }
 };
 
-const numEntities = 5;
+const numEntities = 50;
 
 function getRandom(min: number, max: number): number {
   return Math.random() * (max - min) + min;
@@ -132,32 +141,14 @@ for (let i = 0; i < numEntities; i++) {
 }
 
 // Add the render systems
-world.addRenderSystem(
-  ["TransformComponent", "RectangleComponent"],
-  renderRectangleSystem
-);
-world.addRenderSystem(
-  ["TransformComponent", "CircleComponent"],
-  renderCircleSystem
-);
+world.addRenderSystem(["TransformComponent", "RectangleComponent"], renderRectangleSystem);
+world.addRenderSystem(["TransformComponent", "CircleComponent"], renderCircleSystem);
 
 // Add the update systems
-world.addUpdateSystem(
-  ["TransformComponent", "VelocityComponent"],
-  movementSystem
-);
-world.addUpdateSystem(
-  ["TransformComponent", "VelocityComponent", "RectangleComponent"],
-  boundarySystem
-);
-world.addUpdateSystem(
-  ["TransformComponent", "VelocityComponent", "CircleComponent"],
-  boundarySystem
-);
-world.addUpdateSystem(
-  ["TransformComponent", "AngularVelocityComponent"],
-  rotationSystem
-);
+world.addUpdateSystem(["TransformComponent", "VelocityComponent"], movementSystem);
+world.addUpdateSystem(["TransformComponent", "VelocityComponent", "RectangleComponent"], boundarySystem);
+world.addUpdateSystem(["TransformComponent", "VelocityComponent", "CircleComponent"], boundarySystem);
+world.addUpdateSystem(["TransformComponent", "AngularVelocityComponent"], rotationSystem);
 
 await initialization;
 loop.start();

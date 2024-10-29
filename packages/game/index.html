@@ -14,10 +14,20 @@
         width: 100%; /* make the canvas fill its container */
         height: 100%;
       }
+      #info {
+        position: absolute;
+        top: 0;
+        left: 0;
+        margin: 0;
+        padding: 0.5em;
+        background-color: rgba(0, 0, 0, 0.8);
+        color: white;
+      }
     </style>
   </head>
   <body>
     <canvas id="gameCanvas"></canvas>
+    <pre id="info"></pre>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
