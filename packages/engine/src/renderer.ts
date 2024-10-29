@@ -42,7 +42,7 @@ export class Renderer {
 
     this.updateCanvasSize();
     this.updateProjectionMatrix();
-    
+
     this.device.onuncapturederror = (event) => {
       console.error("Uncaptured WebGPU error:", event.error);
     };
@@ -111,6 +111,19 @@ export class Renderer {
         targets: [
           {
             format: presentationFormat,
+            blend: {
+              color: {
+                srcFactor: "src-alpha",
+                dstFactor: "one-minus-src-alpha",
+                operation: "add",
+              },
+              alpha: {
+                srcFactor: "one",
+                dstFactor: "one-minus-src-alpha",
+                operation: "add",
+              },
+            },
+            writeMask: GPUColorWrite.ALL,
           },
         ],
       },
