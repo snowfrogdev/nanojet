@@ -12,6 +12,8 @@ import {
   movementSystem,
   renderCircleSystem,
   renderRectangleSystem,
+  AngularVelocityComponent,
+  rotationSystem,
 } from "nanojet";
 
 // Get the canvas element from the DOM
@@ -21,7 +23,7 @@ const world = new World();
 const loop = new GameLoop(world, 60, canvas);
 const initialization = loop.init();
 
-export const boundarySystem: UpdateSystem = (world: World, entity: Entity, deltaTimeInMs: number) => {
+const boundarySystem: UpdateSystem = (world: World, entity: Entity, deltaTimeInMs: number) => {
   const transform = world.getComponent<TransformComponent>(entity, "TransformComponent")!;
   const velocity = world.getComponent<VelocityComponent>(entity, "VelocityComponent")!;
 
@@ -44,15 +46,24 @@ export const boundarySystem: UpdateSystem = (world: World, entity: Entity, delta
     }
   }
 
-  // Bounce off the edges
-  if (transform.position.x < 0 || transform.position.x + entityWidth > canvasWidth) {
+  // Calculate half dimensions
+  const halfWidth = entityWidth / 2;
+  const halfHeight = entityHeight / 2;
+
+  // Bounce off the left and right edges
+  if (transform.position.x - halfWidth < 0 || transform.position.x + halfWidth > canvasWidth) {
     velocity.value.x *= -1;
-    transform.position.x = Math.max(0, Math.min(transform.position.x, canvasWidth - entityWidth));
+
+    // Clamp position within bounds
+    transform.position.x = Math.max(halfWidth, Math.min(transform.position.x, canvasWidth - halfWidth));
   }
 
-  if (transform.position.y < 0 || transform.position.y + entityHeight > canvasHeight) {
+  // Bounce off the top and bottom edges
+  if (transform.position.y - halfHeight < 0 || transform.position.y + halfHeight > canvasHeight) {
     velocity.value.y *= -1;
-    transform.position.y = Math.max(0, Math.min(transform.position.y, canvasHeight - entityHeight));
+
+    // Clamp position within bounds
+    transform.position.y = Math.max(halfHeight, Math.min(transform.position.y, canvasHeight - halfHeight));
   }
 };
 
@@ -68,8 +79,42 @@ for (let i = 0; i < numEntities; i++) {
   // Randomly decide whether to create a rectangle or circle
   const isRectangle = Math.random() < 0.5;
 
-  // Random position within canvas
-  const position = new Vec2(getRandom(0, canvas.width), getRandom(0, canvas.height));
+  // Random size
+  let entityWidth = 0;
+  let entityHeight = 0;
+
+  // Random color
+  const color = new Color(getRandom(25, 225), getRandom(25, 225), getRandom(25, 225), getRandom(0.2, 0.8));
+
+  if (isRectangle) {
+    // Random width and height
+    const width = getRandom(20, 100);
+    const height = getRandom(20, 100);
+
+    entityWidth = width;
+    entityHeight = height;
+
+    // Add RectangleComponent
+    world.addComponent(entity, "RectangleComponent", new RectangleComponent(width, height, color));
+  } else {
+    // Random radius
+    const radius = getRandom(10, 50);
+
+    entityWidth = radius * 2;
+    entityHeight = radius * 2;
+
+    // Add CircleComponent
+    world.addComponent(entity, "CircleComponent", new CircleComponent(radius, color));
+  }
+
+  // Random position within canvas, adjusted for center-origin
+  const halfWidth = entityWidth / 2;
+  const halfHeight = entityHeight / 2;
+
+  const position = new Vec2(
+    getRandom(halfWidth, canvas.width - halfWidth),
+    getRandom(halfHeight, canvas.height - halfHeight)
+  );
 
   // Random velocity
   const velocity = new Vec2(
@@ -77,36 +122,42 @@ for (let i = 0; i < numEntities; i++) {
     getRandom(-100, 100)
   );
 
-  // Random color
-  const color = new Color(getRandom(0, 255), getRandom(0, 255), getRandom(0, 255), getRandom(0.1, 0.9));
+  // Random angular velocity (radians per second)
+  const angularVelocity = getRandom(-Math.PI, Math.PI); // Rotate between -180 and 180 degrees per second
 
-  // Add TransformComponent and VelocityComponent
+  // Add TransformComponent, VelocityComponent, and AngularVelocityComponent
   world.addComponent(entity, "TransformComponent", new TransformComponent(position));
   world.addComponent(entity, "VelocityComponent", new VelocityComponent(velocity));
-
-  if (isRectangle) {
-    // Random width and height
-    const width = getRandom(20, 50);
-    const height = getRandom(20, 50);
-
-    // Add RectangleComponent
-    world.addComponent(entity, "RectangleComponent", new RectangleComponent(width, height, color));
-  } else {
-    // Random radius
-    const radius = getRandom(10, 25);
-
-    // Add CircleComponent
-    world.addComponent(entity, "CircleComponent", new CircleComponent(radius, color));
-  }
+  world.addComponent(entity, "AngularVelocityComponent", new AngularVelocityComponent(angularVelocity));
 }
 
 // Add the render systems
-world.addRenderSystem(["TransformComponent", "RectangleComponent"], renderRectangleSystem);
-world.addRenderSystem(["TransformComponent", "CircleComponent"], renderCircleSystem);
+world.addRenderSystem(
+  ["TransformComponent", "RectangleComponent"],
+  renderRectangleSystem
+);
+world.addRenderSystem(
+  ["TransformComponent", "CircleComponent"],
+  renderCircleSystem
+);
 
 // Add the update systems
-world.addUpdateSystem(["TransformComponent", "VelocityComponent"], movementSystem);
-world.addUpdateSystem(["TransformComponent", "VelocityComponent"], boundarySystem);
+world.addUpdateSystem(
+  ["TransformComponent", "VelocityComponent"],
+  movementSystem
+);
+world.addUpdateSystem(
+  ["TransformComponent", "VelocityComponent", "RectangleComponent"],
+  boundarySystem
+);
+world.addUpdateSystem(
+  ["TransformComponent", "VelocityComponent", "CircleComponent"],
+  boundarySystem
+);
+world.addUpdateSystem(
+  ["TransformComponent", "AngularVelocityComponent"],
+  rotationSystem
+);
 
 await initialization;
 loop.start();
