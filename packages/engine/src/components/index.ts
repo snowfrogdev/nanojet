@@ -1,5 +1,5 @@
 export * from "./angular-velocity.component";
-export * from "./circle.component";
-export * from "./rectangle.component";
+export * from "./material.component";
+export * from "./mesh.component";
 export * from "./transform.component";
 export * from "./velocity.component";

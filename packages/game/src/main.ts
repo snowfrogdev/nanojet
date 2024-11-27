@@ -2,18 +2,19 @@ import {
   World,
   GameLoop,
   TransformComponent,
-  CircleComponent,
   Color,
-  RectangleComponent,
   Vec2,
   UpdateSystem,
   VelocityComponent,
   Entity,
   movementSystem,
-  renderCircleSystem,
-  renderRectangleSystem,
   AngularVelocityComponent,
   rotationSystem,
+  renderSystem,
+  createRectangle,
+  createCircle,
+  MeshComponent,
+  MaterialComponent,
 } from "nanojet";
 
 // Get the canvas element from the DOM
@@ -23,7 +24,7 @@ const world = new World();
 const loop = new GameLoop(world, 60, canvas);
 await loop.init();
 
-const boundarySystem: UpdateSystem = (world: World, entity: Entity, deltaTimeInMs: number) => {
+const performanceSystem: UpdateSystem = (world: World, entity: Entity, deltaTimeInMs: number) => {
   // TODO: Just being lazy here and shoving performance timing code in here but it should be extracted
   // to the game loop or some other performance tracking system
   const infoElement = document.getElementById("info") as HTMLPreElement;
@@ -32,48 +33,6 @@ const boundarySystem: UpdateSystem = (world: World, entity: Entity, deltaTimeInM
   ups: ${loop.getUpdateFps().toFixed(1)}
   gpu: ${loop.getGpuTime() !== 0 ? `${(loop.getGpuTime() / 1000).toFixed(1)}µs` : "N/A"}
   `;
-
-  const transform = world.getComponent<TransformComponent>(entity, "TransformComponent")!;
-  const velocity = world.getComponent<VelocityComponent>(entity, "VelocityComponent")!;
-
-  const canvasWidth = canvas.width;
-  const canvasHeight = canvas.height;
-
-  // Determine entity dimensions
-  let entityWidth = 0;
-  let entityHeight = 0;
-
-  const rectangle = world.getComponent<RectangleComponent>(entity, "RectangleComponent");
-  if (rectangle) {
-    entityWidth = rectangle.width;
-    entityHeight = rectangle.height;
-  } else {
-    const circle = world.getComponent<CircleComponent>(entity, "CircleComponent");
-    if (circle) {
-      entityWidth = circle.radius * 2;
-      entityHeight = circle.radius * 2;
-    }
-  }
-
-  // Calculate half dimensions
-  const halfWidth = entityWidth / 2;
-  const halfHeight = entityHeight / 2;
-
-  // Bounce off the left and right edges
-  if (transform.position.x - halfWidth < 0 || transform.position.x + halfWidth > canvasWidth) {
-    velocity.value.x *= -1;
-
-    // Clamp position within bounds
-    transform.position.x = Math.max(halfWidth, Math.min(transform.position.x, canvasWidth - halfWidth));
-  }
-
-  // Bounce off the top and bottom edges
-  if (transform.position.y - halfHeight < 0 || transform.position.y + halfHeight > canvasHeight) {
-    velocity.value.y *= -1;
-
-    // Clamp position within bounds
-    transform.position.y = Math.max(halfHeight, Math.min(transform.position.y, canvasHeight - halfHeight));
-  }
 };
 
 const numEntities = 50;
@@ -82,8 +41,30 @@ function getRandom(min: number, max: number): number {
   return Math.random() * (max - min) + min;
 }
 
+const boundarySystem: UpdateSystem = (world: World, entity: Entity) => {
+  const transform = world.getComponent<TransformComponent>(entity, TransformComponent.name);
+  const velocity = world.getComponent<VelocityComponent>(entity, VelocityComponent.name);
+
+  if (!transform || !velocity) return;
+
+  const halfWidth = transform.scale.x / 2;
+  const halfHeight = transform.scale.y / 2;
+
+  // Check screen boundaries for X-axis
+  if (transform.position.x - halfWidth <= 0 || transform.position.x + halfWidth >= canvas.width) {
+    velocity.value.x *= -1;
+    transform.position.x = Math.max(halfWidth, Math.min(canvas.width - halfWidth, transform.position.x));
+  }
+
+  // Check screen boundaries for Y-axis
+  if (transform.position.y - halfHeight <= 0 || transform.position.y + halfHeight >= canvas.height) {
+    velocity.value.y *= -1;
+    transform.position.y = Math.max(halfHeight, Math.min(canvas.height - halfHeight, transform.position.y));
+  }
+};
+
 for (let i = 0; i < numEntities; i++) {
-  const entity = world.addEntity();
+  let entity;
 
   // Randomly decide whether to create a rectangle or circle
   const isRectangle = Math.random() < 0.5;
@@ -104,7 +85,7 @@ for (let i = 0; i < numEntities; i++) {
     entityHeight = height;
 
     // Add RectangleComponent
-    world.addComponent(entity, "RectangleComponent", new RectangleComponent(width, height, color));
+    entity = createRectangle(world, width, height, color);
   } else {
     // Random radius
     const radius = getRandom(10, 50);
@@ -113,7 +94,7 @@ for (let i = 0; i < numEntities; i++) {
     entityHeight = radius * 2;
 
     // Add CircleComponent
-    world.addComponent(entity, "CircleComponent", new CircleComponent(radius, color));
+    entity = createCircle(world, radius, color);
   }
 
   // Random position within canvas, adjusted for center-origin
@@ -134,20 +115,18 @@ for (let i = 0; i < numEntities; i++) {
   // Random angular velocity (radians per second)
   const angularVelocity = getRandom(-Math.PI, Math.PI); // Rotate between -180 and 180 degrees per second
 
-  // Add TransformComponent, VelocityComponent, and AngularVelocityComponent
-  world.addComponent(entity, "TransformComponent", new TransformComponent(position));
-  world.addComponent(entity, "VelocityComponent", new VelocityComponent(velocity));
-  world.addComponent(entity, "AngularVelocityComponent", new AngularVelocityComponent(angularVelocity));
+  world.getComponent<TransformComponent>(entity, TransformComponent.name)!.position = position;
+  world.addComponent(entity, VelocityComponent.name, new VelocityComponent(velocity));
+  world.addComponent(entity, AngularVelocityComponent.name, new AngularVelocityComponent(angularVelocity));
 }
-
-// Add the render systems
-world.addRenderSystem(["TransformComponent", "RectangleComponent"], renderRectangleSystem);
-world.addRenderSystem(["TransformComponent", "CircleComponent"], renderCircleSystem);
 
 // Add the update systems
 world.addUpdateSystem(["TransformComponent", "VelocityComponent"], movementSystem);
-world.addUpdateSystem(["TransformComponent", "VelocityComponent", "RectangleComponent"], boundarySystem);
-world.addUpdateSystem(["TransformComponent", "VelocityComponent", "CircleComponent"], boundarySystem);
 world.addUpdateSystem(["TransformComponent", "AngularVelocityComponent"], rotationSystem);
+world.addUpdateSystem(["TransformComponent", "VelocityComponent"], boundarySystem);
+
+// Add the render systems
+world.addRenderSystem([TransformComponent.name, MeshComponent.name, MaterialComponent.name], renderSystem);
+world.addUpdateSystem([], performanceSystem);
 
 loop.start();
