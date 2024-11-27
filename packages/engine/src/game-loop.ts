@@ -1,6 +1,7 @@
 import { SECOND_IN_MILLISECONDS } from "./constants";
 import { World } from "./ecs";
 import { Renderer } from "./renderer";
+import { Vec2 } from "./utils";
 
 export class GameLoop {
   private previousTimeInMs = 0;
@@ -13,9 +14,14 @@ export class GameLoop {
   private fpsFilterStrength = 20;
   private renderer: Renderer;
 
-  constructor(private world: World, updateFramesPerSeconds: number, canvas: HTMLCanvasElement) {
+  constructor(
+    private world: World,
+    updateFramesPerSeconds: number,
+    canvas: HTMLCanvasElement,
+    public readonly viewportSize: Vec2
+  ) {
     this.updateStepInMs = SECOND_IN_MILLISECONDS / updateFramesPerSeconds;
-    this.renderer = new Renderer(canvas);
+    this.renderer = new Renderer(canvas, viewportSize);
   }
 
   async init() {

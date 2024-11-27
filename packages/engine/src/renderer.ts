@@ -1,5 +1,5 @@
 import shaderSource from "./shader.wgsl?raw";
-import { Color } from "./utils";
+import { Color, Vec2 } from "./utils";
 import { Matrix3x3, multiply, projection } from "./utils/mat3";
 
 export type MeshData = {
@@ -32,7 +32,7 @@ export class Renderer {
   private instanceData = new Map<string, InstanceData[]>();
   gpuTime: number = 0;
 
-  constructor(private canvas: HTMLCanvasElement) {}
+  constructor(private canvas: HTMLCanvasElement, private viewportSize: Vec2) {}
 
   async initWebGPU() {
     const adapter = await navigator.gpu?.requestAdapter();
@@ -148,34 +148,54 @@ export class Renderer {
     }
 
     const resizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const dpr = Math.min(devicePixelRatio, 2);
-        const width = entry.devicePixelContentBoxSize?.[0].inlineSize || entry.contentBoxSize[0].inlineSize * dpr;
-        const height = entry.devicePixelContentBoxSize?.[0].blockSize || entry.contentBoxSize[0].blockSize * dpr;
-        const canvas = entry.target as HTMLCanvasElement;
-        canvas.width = Math.max(1, Math.min(width, this.device.limits.maxTextureDimension2D));
-        canvas.height = Math.max(1, Math.min(height, this.device.limits.maxTextureDimension2D));
+      for (const _ of entries) {
+        this.updateCanvasSize();
         this.updateProjectionMatrix();
       }
     });
     try {
-      resizeObserver.observe(this.canvas, { box: "device-pixel-content-box" });
+      resizeObserver.observe(this.canvas.parentElement!, { box: "content-box" });
     } catch {
-      resizeObserver.observe(this.canvas, { box: "content-box" });
+      resizeObserver.observe(this.canvas.parentElement!, { box: "device-pixel-content-box" });
     }
   }
 
   private updateCanvasSize() {
+    const parent = this.canvas.parentElement;
+    if (!parent) return;
+
     const dpr = Math.min(window.devicePixelRatio, 2);
-    const rect = this.canvas.getBoundingClientRect();
-    const width = rect.width * dpr;
-    const height = rect.height * dpr;
-    this.canvas.width = Math.max(1, Math.min(width, this.device.limits.maxTextureDimension2D));
-    this.canvas.height = Math.max(1, Math.min(height, this.device.limits.maxTextureDimension2D));
+    const parentWidth = parent.clientWidth * dpr;
+    const parentHeight = parent.clientHeight * dpr;
+
+    const aspect = this.viewportSize.x / this.viewportSize.y;
+    let canvasWidth: number;
+    let canvasHeight: number;
+
+    if (parentWidth / parentHeight > aspect) {
+      // Parent is wider than viewport aspect ratio
+      canvasHeight = parentHeight;
+      canvasWidth = canvasHeight * aspect;
+    } else {
+      // Parent is taller than viewport aspect ratio
+      canvasWidth = parentWidth;
+      canvasHeight = canvasWidth / aspect;
+    }
+
+    this.canvas.width = Math.min(canvasWidth, this.device.limits.maxTextureDimension2D);
+    this.canvas.height = Math.min(canvasHeight, this.device.limits.maxTextureDimension2D);
+
+    this.canvas.style.width = `${canvasWidth / dpr}px`;
+    this.canvas.style.height = `${canvasHeight / dpr}px`;
+
+    // Center the canvas
+    this.canvas.style.position = 'absolute';
+    this.canvas.style.left = `${(parent.clientWidth - canvasWidth / dpr) / 2}px`;
+    this.canvas.style.top = `${(parent.clientHeight - canvasHeight / dpr) / 2}px`;
   }
 
   private updateProjectionMatrix() {
-    this.projectionMatrix = projection(this.canvas.width, this.canvas.height);
+    this.projectionMatrix = projection(this.viewportSize.x, this.viewportSize.y);
   }
 
   beginFrame() {
