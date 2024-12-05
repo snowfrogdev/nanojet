@@ -63,7 +63,7 @@ export class GameLoop {
       this.updateFrameTimeInMs += (updateDeltaTimeInMs - this.updateFrameTimeInMs) / this.fpsFilterStrength;
       this.updatePreviousTimeInMs = updateCurrentTimeInMs;
 
-      this.update(updateDeltaTimeInMs);
+      this.update(updateDeltaTimeInMs / SECOND_IN_MILLISECONDS);
       this.lagInMs -= this.updateStepInMs;
     }
 

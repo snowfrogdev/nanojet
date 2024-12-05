@@ -3,7 +3,7 @@ import { Renderer } from "./renderer";
 export type Entity = number;
 
 export type InputSystem = (world: World, entity: Entity) => void;
-export type UpdateSystem = (world: World, entity: Entity, deltaTimeInMs: number) => void;
+export type UpdateSystem = (world: World, entity: Entity, deltaTimeInSeconds: number) => void;
 export type RenderSystem = (world: World, entity: Entity, extrapolation: number, renderer: Renderer) => void;
 
 export class World {

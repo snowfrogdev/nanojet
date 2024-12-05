@@ -1,7 +1,7 @@
 import { TransformComponent } from "../components";
 import { MaterialComponent } from "../components/material.component";
 import { MeshComponent } from "../components/mesh.component";
-import { World } from "../ecs";
+import { Entity, World } from "../ecs";
 import { Color, Vec2 } from "../utils";
 
 const vertexData = new Float32Array([-0.5, -0.5, 0.5, -0.5, 0.5, 0.5, -0.5, 0.5]);
@@ -12,7 +12,7 @@ export function createRectangle(
   size = new Vec2(1, 1),
   color = new Color(255, 255, 255, 1),
   position = new Vec2()
-): number {
+): Entity {
   const entity = world.addEntity();
   const transform = new TransformComponent();
   transform.scale.set(size.x, size.y);
