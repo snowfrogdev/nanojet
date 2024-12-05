@@ -46,4 +46,13 @@ export class Vec2 {
   copy(): Vec2 {
     return new Vec2(this._x, this._y);
   }
+
+  length(): number {
+    return Math.sqrt(this._x * this._x + this._y * this._y);
+  }
+
+  normalize(): Vec2 {
+    const length = this.length();
+    return new Vec2(this._x / length, this._y / length);
+  }
 }

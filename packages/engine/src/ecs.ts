@@ -54,11 +54,11 @@ export class World {
     }
   }
 
-  update(deltaTimeInMs: number) {
+  update(deltaTimeInSeconds: number) {
     for (const { componentNames, system } of this.updateSystems) {
       for (const entity of this.entities) {
         if (componentNames.every((componentName) => this.components.get(componentName)!.has(entity))) {
-          system(this, entity, deltaTimeInMs);
+          system(this, entity, deltaTimeInSeconds);
         }
       }
     }

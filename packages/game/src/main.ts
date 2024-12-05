@@ -10,11 +10,21 @@ import {
   MeshComponent,
   MaterialComponent,
   Vec2,
+  TimerComponent,
+  timerSystem,
+  TIMER_EVENTS,
+  randomInteger,
+  randomFloat,
+  pickRandom,
 } from "nanojet";
 
 const PADDLE_SPEED = 500;
+const START_SPEED = 500;
+const ACCELERATION = 50;
+
 enum Tags {
   Player = "Player",
+  Ball = "Ball",
 }
 
 // Get the canvas element from the DOM
@@ -58,6 +68,31 @@ const ball = createRectangle(
   new Color(255, 255, 255, 1),
   new Vec2(loop.viewportSize.x / 2, loop.viewportSize.y / 2)
 );
+const ballTimer = new TimerComponent(1, true);
+world.addComponent(ball, TimerComponent.name, ballTimer);
+type BallData = { speed: number; dir: Vec2 };
+world.addComponent(ball, Tags.Ball, { speed: 0, dir: new Vec2(0, 0) });
+
+ballTimer.subscribe(TIMER_EVENTS.TIMEOUT, () => {
+  console.log("timeout");
+  const transform = world.getComponent<TransformComponent>(ball, TransformComponent.name)!;
+  const ballData = world.getComponent<BallData>(ball, Tags.Ball)!;
+  transform.position.x = loop.viewportSize.x / 2;
+  transform.position.y = randomInteger(200, loop.viewportSize.y - 200);
+  ballData.speed = START_SPEED;
+  ballData.dir = randomDirection();
+});
+
+function randomDirection(): Vec2 {
+  const x = pickRandom([-1, 1]);
+  const y = randomFloat(-1, 1);
+  return new Vec2(x, y).normalize();
+}
+
+const ballSystem: UpdateSystem = (world: World, entity: Entity, deltaTimeInSeconds) => {
+  const timer = world.getComponent<TimerComponent>(entity, TimerComponent.name)!;
+  console.log(timer.timeLeft);
+};
 
 const player = createRectangle(
   world,
@@ -93,7 +128,9 @@ const cpu = createRectangle(
 // Add the update systems
 //world.addUpdateSystem(["TransformComponent", "VelocityComponent"], movementSystem);
 //world.addUpdateSystem(["TransformComponent", "AngularVelocityComponent"], rotationSystem);
+world.addUpdateSystem([TimerComponent.name], timerSystem);
 world.addUpdateSystem([TransformComponent.name, Tags.Player], playerSystem);
+world.addUpdateSystem([TransformComponent.name, Tags.Ball], ballSystem);
 world.addUpdateSystem([], performanceSystem);
 
 // Add the render systems
