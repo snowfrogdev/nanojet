@@ -67,7 +67,7 @@ const player = createRectangle(
 );
 world.addComponent(player, Tags.Player, null);
 
-const playerInputSystem: UpdateSystem = (world: World, entity: Entity, deltaTimeInSeconds) => {
+const playerSystem: UpdateSystem = (world: World, entity: Entity, deltaTimeInSeconds) => {
   const transform = world.getComponent<TransformComponent>(entity, TransformComponent.name)!;
   if (keys["w"]) {
     transform.position.y -= PADDLE_SPEED * deltaTimeInSeconds;
@@ -75,6 +75,12 @@ const playerInputSystem: UpdateSystem = (world: World, entity: Entity, deltaTime
   if (keys["s"]) {
     transform.position.y += PADDLE_SPEED * deltaTimeInSeconds;
   }
+
+  const paddleHeight = transform.scale.y;
+  transform.position.y = Math.min(
+    loop.viewportSize.y - paddleHeight / 2,
+    Math.max(paddleHeight / 2, transform.position.y)
+  );
 };
 
 const cpu = createRectangle(
@@ -87,7 +93,7 @@ const cpu = createRectangle(
 // Add the update systems
 //world.addUpdateSystem(["TransformComponent", "VelocityComponent"], movementSystem);
 //world.addUpdateSystem(["TransformComponent", "AngularVelocityComponent"], rotationSystem);
-world.addUpdateSystem([TransformComponent.name, Tags.Player], playerInputSystem);
+world.addUpdateSystem([TransformComponent.name, Tags.Player], playerSystem);
 world.addUpdateSystem([], performanceSystem);
 
 // Add the render systems
