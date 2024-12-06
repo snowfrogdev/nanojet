@@ -26,6 +26,7 @@ enum Tags {
   Player = "Player",
   Ball = "Ball",
   Collider = "Collider",
+  CPU = "CPU",
 }
 
 // Get the canvas element from the DOM
@@ -67,7 +68,7 @@ const topBorder = createRectangle(
   world,
   new Vec2(loop.viewportSize.x, 20),
   new Color(255, 255, 255, 1),
-  new Vec2(loop.viewportSize.x / 2, - 10)
+  new Vec2(loop.viewportSize.x / 2, -10)
 );
 world.addComponent(topBorder, Tags.Collider, null);
 
@@ -91,7 +92,6 @@ type BallData = { speed: number; dir: Vec2 };
 world.addComponent(ball, Tags.Ball, { speed: 0, dir: new Vec2(0, 0) });
 
 ballTimer.subscribe(TIMER_EVENTS.TIMEOUT, () => {
-  console.log("timeout");
   const transform = world.getComponent<TransformComponent>(ball, TransformComponent.name)!;
   const ballData = world.getComponent<BallData>(ball, Tags.Ball)!;
   transform.position.x = loop.viewportSize.x / 2;
@@ -190,11 +190,34 @@ const cpu = createRectangle(
   new Color(255, 255, 255, 1),
   new Vec2(loop.viewportSize.x - 50, loop.viewportSize.y / 2)
 );
+world.addComponent(cpu, Tags.CPU, null);
 world.addComponent(cpu, Tags.Collider, null);
+
+const cpuSystem: UpdateSystem = (world: World, entity: Entity, deltaTimeInSeconds) => {
+  const transform = world.getComponent<TransformComponent>(entity, TransformComponent.name)!;
+  const ballPosition = world.getComponent<TransformComponent>(ball, TransformComponent.name)!.position;
+  const distance = transform.position.y - ballPosition.y;
+
+  let moveBy = 0;
+  if (Math.abs(distance) > PADDLE_SPEED * deltaTimeInSeconds) {
+    moveBy = PADDLE_SPEED * deltaTimeInSeconds * (distance / Math.abs(distance));
+  } else {
+    moveBy = distance;
+  }
+
+  transform.position.y -= moveBy;
+
+  const paddleHeight = transform.scale.y;
+  transform.position.y = Math.min(
+    loop.viewportSize.y - paddleHeight / 2,
+    Math.max(paddleHeight / 2, transform.position.y)
+  );
+};
 
 // Add the update systems
 world.addUpdateSystem([TimerComponent.name], timerSystem);
 world.addUpdateSystem([TransformComponent.name, Tags.Player], playerSystem);
+world.addUpdateSystem([TransformComponent.name, Tags.CPU], cpuSystem);
 world.addUpdateSystem([TransformComponent.name, Tags.Ball], ballSystem);
 world.addUpdateSystem([], performanceSystem);
 
