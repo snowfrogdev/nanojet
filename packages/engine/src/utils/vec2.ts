@@ -51,6 +51,10 @@ export class Vec2 {
     return new Vec2(this._x, this._y);
   }
 
+  dot(vec: Vec2): number {
+    return this._x * vec.x + this._y * vec.y;
+  }
+
   length(): number {
     return Math.sqrt(this._x * this._x + this._y * this._y);
   }

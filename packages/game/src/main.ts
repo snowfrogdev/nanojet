@@ -21,6 +21,7 @@ import {
 const PADDLE_SPEED = 500;
 const START_SPEED = 500;
 const ACCELERATION = 50;
+const MAX_MOVEMENT_PER_STEP = 2; // Decreased from 5 to 2
 
 enum Tags {
   Player = "Player",
@@ -110,69 +111,84 @@ const ballSystem: UpdateSystem = (world, entity, deltaTimeInSeconds) => {
   const transform = world.getComponent<TransformComponent>(entity, TransformComponent.name)!;
   const ballData = world.getComponent<BallData>(entity, Tags.Ball)!;
 
-  // Calculate velocity and new position
-  const velocity = ballData.dir.scale(ballData.speed * deltaTimeInSeconds);
-  const newPos = transform.position.add(velocity);
+  // Calculate total movement
+  const totalMovement = ballData.dir.scale(ballData.speed * deltaTimeInSeconds);
+  const movementLength = totalMovement.length();
 
-  // Get ball's half size
-  const ballHalfSize = transform.scale.scale(0.5);
+  // Determine the number of sub-steps
+  const steps = Math.ceil(movementLength / MAX_MOVEMENT_PER_STEP);
 
-  let collisionDetected = false;
-  let adjustedPos = newPos.copy();
-  let newDir = ballData.dir.copy();
-  let collidedWithPaddle = false;
+  // Normalize movement vector for stepping
+  const stepMovement = totalMovement.scale(1 / steps);
 
-  // Check for collisions with colliders
-  for (const collider of world.getEntitiesWithComponents([Tags.Collider, TransformComponent.name])) {
-    if (collider === entity) continue; // Skip self
+  // Subdivide movement and perform collision checks
+  for (let i = 0; i < steps; i++) {
+    // Move ball by step
+    const newPos = transform.position.add(stepMovement);
 
-    const colliderTransform = world.getComponent<TransformComponent>(collider, TransformComponent.name)!;
-    const colliderHalfSize = colliderTransform.scale.scale(0.5);
+    // Get ball's half size
+    const ballHalfSize = transform.scale.scale(0.5);
 
-    // Calculate the difference between centers
-    const delta = newPos.subtract(colliderTransform.position);
+    let collisionDetected = false;
+    let adjustedPos = newPos.copy();
+    let newDir = ballData.dir.copy();
+    let collidedWithPaddle = false;
 
-    // Calculate overlap on each axis
-    const overlapX = ballHalfSize.x + colliderHalfSize.x - Math.abs(delta.x);
-    const overlapY = ballHalfSize.y + colliderHalfSize.y - Math.abs(delta.y);
+    // Check for collisions with colliders
+    for (const collider of world.getEntitiesWithComponents([Tags.Collider, TransformComponent.name])) {
+      if (collider === entity) continue; // Skip self
 
-    // Check for collision
-    if (overlapX > 0 && overlapY > 0) {
-      collisionDetected = true;
+      const colliderTransform = world.getComponent<TransformComponent>(collider, TransformComponent.name)!;
+      const colliderHalfSize = colliderTransform.scale.scale(0.5);
 
-      // Determine the side of collision and adjust position and direction accordingly
-      if (overlapX < overlapY) {
-        // Horizontal collision
-        adjustedPos.x += delta.x > 0 ? overlapX : -overlapX;
-        newDir.x = -ballData.dir.x;
+      // Calculate the difference between centers
+      const delta = newPos.subtract(colliderTransform.position);
 
-        // Check if collided with paddle
-        if (collider === player || collider === cpu) {
-          collidedWithPaddle = true;
+      // Calculate overlap on each axis
+      const overlapX = ballHalfSize.x + colliderHalfSize.x - Math.abs(delta.x);
+      const overlapY = ballHalfSize.y + colliderHalfSize.y - Math.abs(delta.y);
+
+      // Check for collision
+      if (overlapX > 0 && overlapY > 0) {
+        collisionDetected = true;
+
+        // Determine the side of collision and adjust position and direction accordingly
+        if (overlapX < overlapY) {
+          // Horizontal collision
+          adjustedPos.x += delta.x > 0 ? overlapX : -overlapX;
+          newDir.x = -ballData.dir.x;
+
+          // Check if collided with paddle
+          if (collider === player || collider === cpu) {
+            collidedWithPaddle = true;
+          }
+        } else {
+          // Vertical collision
+          adjustedPos.y += delta.y > 0 ? overlapY : -overlapY;
+          newDir.y = -ballData.dir.y;
         }
-      } else {
-        // Vertical collision
-        adjustedPos.y += delta.y > 0 ? overlapY : -overlapY;
-        newDir.y = -ballData.dir.y;
+
+        break;
+      }
+    }
+
+    if (collisionDetected) {
+      // Update position to prevent overlap
+      transform.position = adjustedPos;
+      // Update direction
+      ballData.dir = newDir.normalize();
+
+      if (collidedWithPaddle) {
+        // Increase speed by ACCELERATION
+        ballData.speed += ACCELERATION;
       }
 
+      // Collision occurred, exit loop
       break;
+    } else {
+      // No collision, update position
+      transform.position = newPos;
     }
-  }
-
-  if (collisionDetected) {
-    // Update position to prevent overlap
-    transform.position = adjustedPos;
-    // Update direction
-    ballData.dir = newDir.normalize();
-
-    if (collidedWithPaddle) {
-      // Increase speed by ACCELERATION
-      ballData.speed += ACCELERATION;
-    }
-  } else {
-    // No collision, update position
-    transform.position = newPos;
   }
 };
 
