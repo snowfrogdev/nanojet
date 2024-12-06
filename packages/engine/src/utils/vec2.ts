@@ -43,6 +43,10 @@ export class Vec2 {
     this._onChange = value;
   }
 
+  add(vec: Vec2): Vec2 {
+    return new Vec2(this._x + vec.x, this._y + vec.y);
+  }
+
   copy(): Vec2 {
     return new Vec2(this._x, this._y);
   }
@@ -54,5 +58,13 @@ export class Vec2 {
   normalize(): Vec2 {
     const length = this.length();
     return new Vec2(this._x / length, this._y / length);
+  }
+
+  scale(value: number): Vec2 {
+    return new Vec2(this._x * value, this._y * value);
+  }
+
+  subtract(vec: Vec2): Vec2 {
+    return new Vec2(this._x - vec.x, this._y - vec.y);
   }
 }

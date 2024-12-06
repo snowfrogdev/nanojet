@@ -25,6 +25,7 @@ const ACCELERATION = 50;
 enum Tags {
   Player = "Player",
   Ball = "Ball",
+  Collider = "Collider",
 }
 
 // Get the canvas element from the DOM
@@ -62,6 +63,22 @@ createRectangle(
   new Vec2(loop.viewportSize.x / 2, loop.viewportSize.y / 2)
 );
 
+const topBorder = createRectangle(
+  world,
+  new Vec2(loop.viewportSize.x, 20),
+  new Color(255, 255, 255, 1),
+  new Vec2(loop.viewportSize.x / 2, - 10)
+);
+world.addComponent(topBorder, Tags.Collider, null);
+
+const bottomBorder = createRectangle(
+  world,
+  new Vec2(loop.viewportSize.x, 20),
+  new Color(255, 255, 255, 1),
+  new Vec2(loop.viewportSize.x / 2, loop.viewportSize.y + 10)
+);
+world.addComponent(bottomBorder, Tags.Collider, null);
+
 const ball = createRectangle(
   world,
   new Vec2(10, 10),
@@ -89,9 +106,58 @@ function randomDirection(): Vec2 {
   return new Vec2(x, y).normalize();
 }
 
-const ballSystem: UpdateSystem = (world: World, entity: Entity, deltaTimeInSeconds) => {
-  const timer = world.getComponent<TimerComponent>(entity, TimerComponent.name)!;
-  console.log(timer.timeLeft);
+const ballSystem: UpdateSystem = (world, entity, deltaTimeInSeconds) => {
+  const transform = world.getComponent<TransformComponent>(entity, TransformComponent.name)!;
+  const ballData = world.getComponent<BallData>(entity, Tags.Ball)!;
+
+  // Calculate velocity and new position
+  const velocity = ballData.dir.scale(ballData.speed * deltaTimeInSeconds);
+  const newPos = transform.position.add(velocity);
+
+  // Get ball's half size
+  const ballHalfSize = transform.scale.scale(0.5);
+
+  let collisionDetected = false;
+  let adjustedPos = newPos.copy();
+
+  // Check for collisions with colliders
+  for (const collider of world.getEntitiesWithComponents([Tags.Collider, TransformComponent.name])) {
+    if (collider === entity) continue; // Skip self
+
+    const colliderTransform = world.getComponent<TransformComponent>(collider, TransformComponent.name)!;
+    const colliderHalfSize = colliderTransform.scale.scale(0.5);
+
+    // Calculate the difference between centers
+    const delta = newPos.subtract(colliderTransform.position);
+
+    // Calculate overlap on each axis
+    const overlapX = ballHalfSize.x + colliderHalfSize.x - Math.abs(delta.x);
+    const overlapY = ballHalfSize.y + colliderHalfSize.y - Math.abs(delta.y);
+
+    // Check for collision
+    if (overlapX > 0 && overlapY > 0) {
+      collisionDetected = true;
+
+      // Adjust position based on the axis of least penetration
+      if (overlapX < overlapY) {
+        adjustedPos.x += delta.x > 0 ? overlapX : -overlapX;
+      } else {
+        adjustedPos.y += delta.y > 0 ? overlapY : -overlapY;
+      }
+
+      break;
+    }
+  }
+
+  if (collisionDetected) {
+    // Update position to prevent overlap
+    transform.position = adjustedPos;
+    // Stop the ball
+    ballData.speed = 0;
+  } else {
+    // No collision, update position
+    transform.position = newPos;
+  }
 };
 
 const player = createRectangle(
@@ -101,7 +167,7 @@ const player = createRectangle(
   new Vec2(50, loop.viewportSize.y / 2)
 );
 world.addComponent(player, Tags.Player, null);
-
+world.addComponent(player, Tags.Collider, null);
 const playerSystem: UpdateSystem = (world: World, entity: Entity, deltaTimeInSeconds) => {
   const transform = world.getComponent<TransformComponent>(entity, TransformComponent.name)!;
   if (keys["w"]) {
@@ -124,10 +190,9 @@ const cpu = createRectangle(
   new Color(255, 255, 255, 1),
   new Vec2(loop.viewportSize.x - 50, loop.viewportSize.y / 2)
 );
+world.addComponent(cpu, Tags.Collider, null);
 
 // Add the update systems
-//world.addUpdateSystem(["TransformComponent", "VelocityComponent"], movementSystem);
-//world.addUpdateSystem(["TransformComponent", "AngularVelocityComponent"], rotationSystem);
 world.addUpdateSystem([TimerComponent.name], timerSystem);
 world.addUpdateSystem([TransformComponent.name, Tags.Player], playerSystem);
 world.addUpdateSystem([TransformComponent.name, Tags.Ball], ballSystem);

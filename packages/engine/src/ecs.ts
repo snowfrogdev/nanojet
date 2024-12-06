@@ -44,32 +44,34 @@ export class World {
     this.renderSystems.push({ componentNames, system });
   }
 
+  *getEntitiesWithComponents(componentNames: string[]): Iterable<Entity> {
+    for (const entity of this.entities) {
+      if (componentNames.every((componentName) => this.components.get(componentName)!.has(entity))) {
+        yield entity;
+      }
+    }
+  }
+
   processInput() {
     for (const { componentNames, system } of this.inputSystems) {
-      for (const entity of this.entities) {
-        if (componentNames.every((componentName) => this.components.get(componentName)!.has(entity))) {
-          system(this, entity);
-        }
+      for (const entity of this.getEntitiesWithComponents(componentNames)) {
+        system(this, entity);
       }
     }
   }
 
   update(deltaTimeInSeconds: number) {
     for (const { componentNames, system } of this.updateSystems) {
-      for (const entity of this.entities) {
-        if (componentNames.every((componentName) => this.components.get(componentName)!.has(entity))) {
-          system(this, entity, deltaTimeInSeconds);
-        }
+      for (const entity of this.getEntitiesWithComponents(componentNames)) {
+        system(this, entity, deltaTimeInSeconds);
       }
     }
   }
 
   render(extrapolation: number, renderer: Renderer) {
     for (const { componentNames, system } of this.renderSystems) {
-      for (const entity of this.entities) {
-        if (componentNames.every((componentName) => this.components.get(componentName)!.has(entity))) {
-          system(this, entity, extrapolation, renderer);
-        }
+      for (const entity of this.getEntitiesWithComponents(componentNames)) {
+        system(this, entity, extrapolation, renderer);
       }
     }
   }
