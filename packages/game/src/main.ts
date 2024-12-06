@@ -119,6 +119,8 @@ const ballSystem: UpdateSystem = (world, entity, deltaTimeInSeconds) => {
 
   let collisionDetected = false;
   let adjustedPos = newPos.copy();
+  let newDir = ballData.dir.copy();
+  let collidedWithPaddle = false;
 
   // Check for collisions with colliders
   for (const collider of world.getEntitiesWithComponents([Tags.Collider, TransformComponent.name])) {
@@ -138,11 +140,20 @@ const ballSystem: UpdateSystem = (world, entity, deltaTimeInSeconds) => {
     if (overlapX > 0 && overlapY > 0) {
       collisionDetected = true;
 
-      // Adjust position based on the axis of least penetration
+      // Determine the side of collision and adjust position and direction accordingly
       if (overlapX < overlapY) {
+        // Horizontal collision
         adjustedPos.x += delta.x > 0 ? overlapX : -overlapX;
+        newDir.x = -ballData.dir.x;
+
+        // Check if collided with paddle
+        if (collider === player || collider === cpu) {
+          collidedWithPaddle = true;
+        }
       } else {
+        // Vertical collision
         adjustedPos.y += delta.y > 0 ? overlapY : -overlapY;
+        newDir.y = -ballData.dir.y;
       }
 
       break;
@@ -152,8 +163,13 @@ const ballSystem: UpdateSystem = (world, entity, deltaTimeInSeconds) => {
   if (collisionDetected) {
     // Update position to prevent overlap
     transform.position = adjustedPos;
-    // Stop the ball
-    ballData.speed = 0;
+    // Update direction
+    ballData.dir = newDir.normalize();
+
+    if (collidedWithPaddle) {
+      // Increase speed by ACCELERATION
+      ballData.speed += ACCELERATION;
+    }
   } else {
     // No collision, update position
     transform.position = newPos;
