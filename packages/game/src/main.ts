@@ -21,7 +21,8 @@ import {
 const PADDLE_SPEED = 500;
 const START_SPEED = 500;
 const ACCELERATION = 50;
-const MAX_MOVEMENT_PER_STEP = 2; // Decreased from 5 to 2
+const MAX_MOVEMENT_PER_STEP = 2;
+const MAX_Y_VECTOR = 0.6;
 
 enum Tags {
   Player = "Player",
@@ -132,7 +133,6 @@ const ballSystem: UpdateSystem = (world, entity, deltaTimeInSeconds) => {
     let collisionDetected = false;
     let adjustedPos = newPos.copy();
     let newDir = ballData.dir.copy();
-    let collidedWithPaddle = false;
 
     // Check for collisions with colliders
     for (const collider of world.getEntitiesWithComponents([Tags.Collider, TransformComponent.name])) {
@@ -152,41 +152,44 @@ const ballSystem: UpdateSystem = (world, entity, deltaTimeInSeconds) => {
       if (overlapX > 0 && overlapY > 0) {
         collisionDetected = true;
 
-        // Determine the side of collision and adjust position and direction accordingly
-        if (overlapX < overlapY) {
-          // Horizontal collision
-          adjustedPos.x += delta.x > 0 ? overlapX : -overlapX;
+        if (collider === player || collider === cpu) {
           newDir.x = -ballData.dir.x;
 
-          // Check if collided with paddle
-          if (collider === player || collider === cpu) {
-            collidedWithPaddle = true;
-          }
+          // Calculate vertical distance between ball and paddle
+          const ballY = adjustedPos.y;
+          const paddleY = colliderTransform.position.y;
+          const paddleHeight = colliderTransform.scale.y;
+          const dist = ballY - paddleY;
+
+          newDir.y = (dist / (paddleHeight / 2)) * MAX_Y_VECTOR;
+
+          newDir = newDir.normalize();
+
+          ballData.speed += ACCELERATION;
         } else {
-          // Vertical collision
-          adjustedPos.y += delta.y > 0 ? overlapY : -overlapY;
+          // Collision with top/bottom borders
+          // Reflect vertical direction
           newDir.y = -ballData.dir.y;
         }
+
+        ballData.dir = newDir;
+
+        // Adjust position to prevent overlap
+        if (overlapX < overlapY) {
+          adjustedPos.x += delta.x > 0 ? overlapX : -overlapX;
+        } else {
+          adjustedPos.y += delta.y > 0 ? overlapY : -overlapY;
+        }
+
+        transform.position = adjustedPos;
 
         break;
       }
     }
 
     if (collisionDetected) {
-      // Update position to prevent overlap
-      transform.position = adjustedPos;
-      // Update direction
-      ballData.dir = newDir.normalize();
-
-      if (collidedWithPaddle) {
-        // Increase speed by ACCELERATION
-        ballData.speed += ACCELERATION;
-      }
-
-      // Collision occurred, exit loop
       break;
     } else {
-      // No collision, update position
       transform.position = newPos;
     }
   }
