@@ -16,6 +16,9 @@ import {
   randomInteger,
   randomFloat,
   pickRandom,
+  AreaComponent,
+  AREA_EVENTS,
+  areaSystem,
 } from "nanojet";
 
 const PADDLE_SPEED = 500;
@@ -25,10 +28,10 @@ const MAX_MOVEMENT_PER_STEP = 2;
 const MAX_Y_VECTOR = 0.6;
 
 enum Tags {
-  Player = "Player",
   Ball = "Ball",
   Collider = "Collider",
   CPU = "CPU",
+  Player = "Player",
 }
 
 // Get the canvas element from the DOM
@@ -81,6 +84,30 @@ const bottomBorder = createRectangle(
   new Vec2(loop.viewportSize.x / 2, loop.viewportSize.y + 10)
 );
 world.addComponent(bottomBorder, Tags.Collider, null);
+
+const scoreAreaLeft = createRectangle(
+  world,
+  new Vec2(40, loop.viewportSize.y),
+  new Color(255, 255, 255, 1),
+  new Vec2(-20, loop.viewportSize.y / 2)
+);
+const scoreAreaLeftComponent = new AreaComponent();
+scoreAreaLeftComponent.subscribe(AREA_EVENTS.ENTER, (payload) => {
+  ballTimer.start();
+});
+world.addComponent(scoreAreaLeft, AreaComponent.name, scoreAreaLeftComponent);
+
+const scoreAreaRight = createRectangle(
+  world,
+  new Vec2(40, loop.viewportSize.y),
+  new Color(255, 255, 255, 1),
+  new Vec2(loop.viewportSize.x + 20, loop.viewportSize.y / 2)
+);
+const scoreAreaRightComponent = new AreaComponent();
+scoreAreaRightComponent.subscribe(AREA_EVENTS.ENTER, (payload) => {
+  ballTimer.start();
+});
+world.addComponent(scoreAreaRight, AreaComponent.name, scoreAreaRightComponent);
 
 const ball = createRectangle(
   world,
@@ -254,6 +281,7 @@ world.addUpdateSystem([TimerComponent.name], timerSystem);
 world.addUpdateSystem([TransformComponent.name, Tags.Player], playerSystem);
 world.addUpdateSystem([TransformComponent.name, Tags.CPU], cpuSystem);
 world.addUpdateSystem([TransformComponent.name, Tags.Ball], ballSystem);
+world.addUpdateSystem([AreaComponent.name], areaSystem);
 world.addUpdateSystem([], performanceSystem);
 
 // Add the render systems
