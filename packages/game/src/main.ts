@@ -41,7 +41,7 @@ const world = new World();
 const loop = new GameLoop(world, 60, canvas, new Vec2(1152, 648));
 await loop.init();
 
-const performanceSystem: UpdateSystem = (world: World, entity: Entity, deltaTimeInMs: number) => {
+const performanceSystem: UpdateSystem = (_world: World, _entity: Entity, _deltaTimeInMs: number) => {
   // TODO: Just being lazy here and shoving performance timing code in here but it should be extracted
   // to the game loop or some other performance tracking system
   const infoElement = document.getElementById("info") as HTMLPreElement;
@@ -92,7 +92,7 @@ const scoreAreaLeft = createRectangle(
   new Vec2(-20, loop.viewportSize.y / 2)
 );
 const scoreAreaLeftComponent = new AreaComponent();
-scoreAreaLeftComponent.subscribe(AREA_EVENTS.ENTER, (payload) => {
+scoreAreaLeftComponent.subscribe(AREA_EVENTS.ENTER, (_payload) => {
   ballTimer.start();
 });
 world.addComponent(scoreAreaLeft, AreaComponent.name, scoreAreaLeftComponent);
@@ -104,7 +104,7 @@ const scoreAreaRight = createRectangle(
   new Vec2(loop.viewportSize.x + 20, loop.viewportSize.y / 2)
 );
 const scoreAreaRightComponent = new AreaComponent();
-scoreAreaRightComponent.subscribe(AREA_EVENTS.ENTER, (payload) => {
+scoreAreaRightComponent.subscribe(AREA_EVENTS.ENTER, (_payload) => {
   ballTimer.start();
 });
 world.addComponent(scoreAreaRight, AreaComponent.name, scoreAreaRightComponent);
