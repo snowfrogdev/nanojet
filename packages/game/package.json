@@ -12,10 +12,10 @@
     "nanojet": "0.1.0"
   },
   "devDependencies": {
-    "@types/node": "^22.7.6",
-    "@webgpu/types": "^0.1.49",
-    "typescript": "^5.6.3",
-    "vite": "^5.4.9"
+    "@types/node": "*",
+    "@webgpu/types": "*",
+    "typescript": "*",
+    "vite": "*"
   }
 }
 

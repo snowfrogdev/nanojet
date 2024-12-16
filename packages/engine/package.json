@@ -13,10 +13,13 @@
     "dev": "vite"
   },
   "devDependencies": {
-    "@types/node": "^22.7.6",
-    "@webgpu/types": "^0.1.49",
-    "typescript": "^5.6.3",
-    "vite": "^5.4.9",
-    "vite-plugin-dts": "^4.2.4"
+    "@types/node": "*",
+    "@webgpu/types": "*",
+    "typescript": "*",
+    "vite": "*",
+    "vite-plugin-dts": "*"
+  },
+  "dependencies": {
+    "zzfx": "*"
   }
 }
