@@ -19,6 +19,7 @@ import {
   AreaComponent,
   AREA_EVENTS,
   areaSystem,
+  Sound, // Add this import
 } from "nanojet";
 
 const PADDLE_SPEED = 500;
@@ -135,6 +136,8 @@ function randomDirection(): Vec2 {
   return new Vec2(x, y).normalize();
 }
 
+const collisionSound = new Sound([1.2, 0.15, 545, , , 0.01, 1, , , , , , , 0.2, , 0.3, , 0.55, 0.02, , 519]);
+
 const ballSystem: UpdateSystem = (world, entity, deltaTimeInSeconds) => {
   const transform = world.getComponent<TransformComponent>(entity, TransformComponent.name)!;
   const ballData = world.getComponent<BallData>(entity, Tags.Ball)!;
@@ -178,6 +181,7 @@ const ballSystem: UpdateSystem = (world, entity, deltaTimeInSeconds) => {
       // Check for collision
       if (overlapX > 0 && overlapY > 0) {
         collisionDetected = true;
+        collisionSound.play(); // Play sound on collision
 
         if (collider === player || collider === cpu) {
           newDir.x = -ballData.dir.x;
