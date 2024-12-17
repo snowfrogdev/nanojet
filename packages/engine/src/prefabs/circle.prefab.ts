@@ -5,21 +5,28 @@ import { Entity, World } from "../ecs";
 import { Color, Vec2 } from "../utils";
 
 function generateCircleGeometry(segments: number): { vertexData: Float32Array; indexData: Uint16Array } {
-  const vertexData = new Float32Array((segments + 2) * 2); // +2 for center and wrapping
+  const vertexData = new Float32Array((segments + 2) * 4); // x, y, u, v per vertex
   const indexData = new Uint16Array(segments * 3); // Each triangle (fan) requires 3 indices
 
   // Center vertex at (0, 0)
-  vertexData[0] = 0;
-  vertexData[1] = 0;
+  vertexData[0] = 0;    // x
+  vertexData[1] = 0;    // y
+  vertexData[2] = 0.5;  // u
+  vertexData[3] = 0.5;  // v
 
   for (let i = 0; i <= segments; i++) {
     const angle = (i / segments) * Math.PI * 2;
     const x = Math.cos(angle);
     const y = Math.sin(angle);
+    const index = (i + 1) * 4;
 
     // Position vertices
-    vertexData[(i + 1) * 2] = x;
-    vertexData[(i + 1) * 2 + 1] = y;
+    vertexData[index] = x;
+    vertexData[index + 1] = y;
+
+    // UV coordinates
+    vertexData[index + 2] = (x + 1) / 2;
+    vertexData[index + 3] = (y + 1) / 2;
 
     // Indices
     if (i < segments) {

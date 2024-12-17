@@ -1,7 +1,6 @@
 import { SECOND_IN_MILLISECONDS } from "./constants";
 import { World } from "./ecs";
 import { Renderer } from "./renderer";
-import { Vec2 } from "./utils";
 
 export class GameLoop {
   private previousTimeInMs = 0;
@@ -12,20 +11,9 @@ export class GameLoop {
   private renderFrameTimeInMs = 0;
   private updateFrameTimeInMs = 0;
   private fpsFilterStrength = 20;
-  private renderer: Renderer;
 
-  constructor(
-    private world: World,
-    updateFramesPerSeconds: number,
-    canvas: HTMLCanvasElement,
-    public readonly viewportSize: Vec2
-  ) {
+  constructor(updateFramesPerSeconds: number, private world: World, private renderer: Renderer) {
     this.updateStepInMs = SECOND_IN_MILLISECONDS / updateFramesPerSeconds;
-    this.renderer = new Renderer(canvas, viewportSize);
-  }
-
-  async init() {
-    await this.renderer.initWebGPU();
   }
 
   start() {
@@ -43,10 +31,6 @@ export class GameLoop {
 
   getUpdateFps(): number {
     return SECOND_IN_MILLISECONDS / this.updateFrameTimeInMs;
-  }
-
-  getGpuTime() {
-    return this.renderer.gpuTime;
   }
 
   private loop = () => {

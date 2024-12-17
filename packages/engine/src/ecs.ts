@@ -1,5 +1,4 @@
 import { Renderer } from "./renderer";
-import { ResourceManager } from "./resources/resource-manager";
 
 export type Entity = number;
 
@@ -14,11 +13,7 @@ export class World {
   private inputSystems: { componentNames: string[]; system: InputSystem }[] = [];
   private updateSystems: { componentNames: string[]; system: UpdateSystem }[] = [];
   private renderSystems: { componentNames: string[]; system: RenderSystem }[] = [];
-  private resourceManager = new ResourceManager();
 
-  addResourceLoader(extensions: string[], loader: ResourceManager) {
-    this.resourceManager.addLoader(extensions, loader);
-  }
 
   addEntity() {
     return this.entities.push(this.id) && this.id++;

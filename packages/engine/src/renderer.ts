@@ -1,3 +1,4 @@
+import { ResourceManager, Texture } from "./resources";
 import shaderSource from "./shader.wgsl?raw";
 import { Color, Vec2 } from "./utils";
 import { Matrix3x3, multiply, projection } from "./utils/mat3";
@@ -19,6 +20,12 @@ type InstanceData = {
   color: Color;
 };
 
+type TextureEntry = {
+  textureView: GPUTextureView;
+  sampler: GPUSampler;
+  bindGroup: GPUBindGroup;
+};
+
 export class Renderer {
   private context!: GPUCanvasContext;
   private device!: GPUDevice;
@@ -29,12 +36,18 @@ export class Renderer {
   private resultBuffer!: GPUBuffer;
   private projectionMatrix!: Matrix3x3;
   private meshCache = new Map<string, MeshBuffers>();
-  private instanceData = new Map<string, InstanceData[]>();
+  private textureCache = new Map<string, TextureEntry>();
+  private instancesByTextureData = new Map<string, Map<string, InstanceData[]>>();
+  private defaultTextureEntry!: TextureEntry;
   gpuTime: number = 0;
 
-  constructor(private canvas: HTMLCanvasElement, private viewportSize: Vec2) {}
+  constructor(
+    private canvas: HTMLCanvasElement,
+    private viewportSize: Vec2,
+    private resourceManager: ResourceManager
+  ) {}
 
-  async initWebGPU() {
+  async init() {
     const adapter = await navigator.gpu?.requestAdapter();
     this.canTimestamp = Boolean(adapter?.features.has("timestamp-query"));
     const device = await adapter?.requestDevice({
@@ -80,19 +93,35 @@ export class Renderer {
       throw new Error("Shader compilation failed");
     }
 
+    const bindGroupLayout = this.device.createBindGroupLayout({
+      entries: [
+        { binding: 0, visibility: GPUShaderStage.FRAGMENT, sampler: {} },
+        { binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: {} },
+      ],
+    });
+
+    const pipelineLayout = this.device.createPipelineLayout({
+      bindGroupLayouts: [bindGroupLayout],
+    });
+
     this.pipeline = this.device.createRenderPipeline({
-      layout: "auto",
+      layout: pipelineLayout,
       vertex: {
         module: shaderModule,
         entryPoint: "vs",
         buffers: [
           {
-            arrayStride: 2 * 4, // two float32 per vertex position (vec2f)
+            arrayStride: 4 * 4, // Vertex buffer for geometry: position + uv = 4 floats * 4 bytes = 16 bytes/vertex
             attributes: [
               {
                 shaderLocation: 0,
                 offset: 0,
-                format: "float32x2",
+                format: "float32x2", // position
+              },
+              {
+                shaderLocation: 1,
+                offset: 8,
+                format: "float32x2", // uv
               },
             ],
           },
@@ -100,10 +129,10 @@ export class Renderer {
             arrayStride: 64, // 4 floats (vec4 color) + 9 floats (3x3 matrix)
             stepMode: "instance",
             attributes: [
-              { shaderLocation: 1, offset: 0, format: "float32x4" }, // Color (vec4f)
-              { shaderLocation: 2, offset: 16, format: "float32x4" }, // Matrix row 0
-              { shaderLocation: 3, offset: 32, format: "float32x4" }, // Matrix row 1
-              { shaderLocation: 4, offset: 48, format: "float32x4" }, // Matrix row 2
+              { shaderLocation: 2, offset: 0, format: "float32x4" }, // Color (vec4f)
+              { shaderLocation: 3, offset: 16, format: "float32x4" }, // Matrix row 0
+              { shaderLocation: 4, offset: 32, format: "float32x4" }, // Matrix row 1
+              { shaderLocation: 5, offset: 48, format: "float32x4" }, // Matrix row 2
             ],
           },
         ],
@@ -131,6 +160,8 @@ export class Renderer {
         ],
       },
     });
+
+    this.loadTextures();
 
     if (this.canTimestamp) {
       this.querySet = device.createQuerySet({
@@ -189,7 +220,7 @@ export class Renderer {
     this.canvas.style.height = `${canvasHeight / dpr}px`;
 
     // Center the canvas
-    this.canvas.style.position = 'absolute';
+    this.canvas.style.position = "absolute";
     this.canvas.style.left = `${(parent.clientWidth - canvasWidth / dpr) / 2}px`;
     this.canvas.style.top = `${(parent.clientHeight - canvasHeight / dpr) / 2}px`;
   }
@@ -199,17 +230,23 @@ export class Renderer {
   }
 
   beginFrame() {
-    this.instanceData.clear();
+    this.instancesByTextureData.clear();
   }
 
-  queueDraw(meshData: MeshData, modelMatrix: Matrix3x3, color: Color) {
-    if (!this.instanceData.has(meshData.id)) {
-      this.instanceData.set(meshData.id, []);
-    }
-    this.instanceData.get(meshData.id)!.push({ modelMatrix, color });
-
-    // Cache geometry buffers if not already cached
+  queueDraw(meshData: MeshData, modelMatrix: Matrix3x3, color: Color, textureId?: string) {
     if (!this.meshCache.has(meshData.id)) this.createGeometryBuffers(meshData.id, meshData);
+
+    const texId = textureId ?? "default_texture";
+
+    if (!this.instancesByTextureData.has(texId)) {
+      this.instancesByTextureData.set(texId, new Map());
+    }
+
+    const meshMap = this.instancesByTextureData.get(texId)!;
+    if (!meshMap.has(meshData.id)) {
+      meshMap.set(meshData.id, []);
+    }
+    meshMap.get(meshData.id)!.push({ modelMatrix, color });
   }
 
   private createGeometryBuffers(meshId: string, meshData: MeshData) {
@@ -254,31 +291,42 @@ export class Renderer {
       }),
     });
 
-    for (const [meshId, instances] of this.instanceData) {
-      const { vertexBuffer, indexBuffer, numIndices } = this.meshCache.get(meshId)!;
+    renderPassEncoder.setPipeline(this.pipeline);
 
-      const instanceBuffer = this.device.createBuffer({
-        size: instances.length * 64, // 12 floats for matrix + 4 for color = 16 floats * 4 bytes
-        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-      });
+    for (const [textureId, meshMap] of this.instancesByTextureData) {
+      const textureEntry =
+        textureId === "default_texture"
+          ? this.defaultTextureEntry
+          : this.textureCache.get(textureId)!;
 
-      const instanceData = new Float32Array(
-        instances.flatMap(({ modelMatrix, color }) => {
-          const combinedMatrix = multiply(this.projectionMatrix, modelMatrix);
-          return [
-            ...color.toFloat32Array(),
-            ...[...combinedMatrix.slice(0, 3), 0, ...combinedMatrix.slice(3, 6), 0, ...combinedMatrix.slice(6, 9), 0],
-          ];
-        })
-      );
+      renderPassEncoder.setBindGroup(0, textureEntry.bindGroup);
 
-      this.device.queue.writeBuffer(instanceBuffer, 0, instanceData);
+      for (const [meshId, instances] of meshMap) {
+        const { vertexBuffer, indexBuffer, numIndices } = this.meshCache.get(meshId)!;
 
-      renderPassEncoder.setPipeline(this.pipeline);
-      renderPassEncoder.setVertexBuffer(0, vertexBuffer);
-      renderPassEncoder.setVertexBuffer(1, instanceBuffer);
-      renderPassEncoder.setIndexBuffer(indexBuffer, "uint16");
-      renderPassEncoder.drawIndexed(numIndices, instances.length, 0, 0, 0);
+        const instanceBuffer = this.device.createBuffer({
+          size: instances.length * 64, // 12 floats for matrix + 4 for color = 16 floats * 4 bytes
+          usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+        });
+
+        const instanceData = new Float32Array(
+          instances.flatMap(({ modelMatrix, color }) => {
+            const combinedMatrix = multiply(this.projectionMatrix, modelMatrix);
+            return [
+              ...color.toFloat32Array(),
+              ...[...combinedMatrix.slice(0, 3), 0, ...combinedMatrix.slice(3, 6), 0, ...combinedMatrix.slice(6, 9), 0],
+            ];
+          })
+        );
+
+        this.device.queue.writeBuffer(instanceBuffer, 0, instanceData);
+
+
+        renderPassEncoder.setVertexBuffer(0, vertexBuffer);
+        renderPassEncoder.setVertexBuffer(1, instanceBuffer);
+        renderPassEncoder.setIndexBuffer(indexBuffer, "uint16");
+        renderPassEncoder.drawIndexed(numIndices, instances.length, 0, 0, 0);
+      }
     }
 
     renderPassEncoder.end();
@@ -300,5 +348,79 @@ export class Renderer {
         this.resultBuffer.unmap();
       });
     }
+  }
+
+  private loadTextures() {
+    // Load actual textures
+    for (const { id, imageBitmap } of this.resourceManager.getAll("Texture") as Texture[]) {
+      const sampler = this.device.createSampler({
+        magFilter: "linear",
+        minFilter: "linear",
+      });
+
+      const texture = this.device.createTexture({
+        size: [imageBitmap.width, imageBitmap.height],
+        format: "rgba8unorm",
+        usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+      });
+
+      this.device.queue.copyExternalImageToTexture({ source: imageBitmap }, { texture }, [
+        imageBitmap.width,
+        imageBitmap.height,
+      ]);
+
+      const textureView = texture.createView();
+
+      const bindGroup = this.device.createBindGroup({
+        layout: this.pipeline.getBindGroupLayout(0),
+        entries: [
+          {
+            binding: 0,
+            resource: sampler,
+          },
+          {
+            binding: 1,
+            resource: textureView,
+          },
+        ],
+      });
+
+      this.textureCache.set(id, { textureView, sampler, bindGroup });
+    }
+
+    this.createDefaultTexture();
+  }
+
+  private createDefaultTexture() {
+    const sampler = this.device.createSampler({
+      magFilter: "linear",
+      minFilter: "linear",
+    });
+
+    const whiteTextureData = new Uint8Array([255, 255, 255, 255]); // RGBA white pixel
+    const texture = this.device.createTexture({
+      size: [1, 1],
+      format: "rgba8unorm",
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+    });
+
+    this.device.queue.writeTexture(
+      { texture },
+      whiteTextureData,
+      { bytesPerRow: 4 },
+      [1, 1]
+    );
+
+    const textureView = texture.createView();
+
+    const bindGroup = this.device.createBindGroup({
+      layout: this.pipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: sampler },
+        { binding: 1, resource: textureView },
+      ],
+    });
+
+    this.defaultTextureEntry = { textureView, sampler, bindGroup };
   }
 }

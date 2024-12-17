@@ -1,6 +1,5 @@
 import {
   World,
-  GameLoop,
   TransformComponent,
   Color,
   UpdateSystem,
@@ -19,7 +18,8 @@ import {
   AreaComponent,
   AREA_EVENTS,
   areaSystem,
-  Sound, // Add this import
+  Sound,
+  Engine, // Add this import
 } from "nanojet";
 
 const PADDLE_SPEED = 500;
@@ -37,19 +37,19 @@ enum Tags {
 
 // Get the canvas element from the DOM
 const canvas = document.getElementById("gameCanvas") as HTMLCanvasElement;
+const viewportSize = new Vec2(1152, 648);
+const engine = new Engine(canvas, viewportSize);
 
-const world = new World();
-const loop = new GameLoop(world, 60, canvas, new Vec2(1152, 648));
-await loop.init();
+const world = engine.world;
 
 const performanceSystem: UpdateSystem = (_world: World, _entity: Entity, _deltaTimeInMs: number) => {
   // TODO: Just being lazy here and shoving performance timing code in here but it should be extracted
   // to the game loop or some other performance tracking system
   const infoElement = document.getElementById("info") as HTMLPreElement;
   infoElement.textContent = `\
-  fps: ${loop.getRenderFps().toFixed(1)}
-  ups: ${loop.getUpdateFps().toFixed(1)}
-  gpu: ${loop.getGpuTime() !== 0 ? `${(loop.getGpuTime() / 1000).toFixed(1)}µs` : "N/A"}
+  fps: ${engine.getRenderFps().toFixed(1)}
+  ups: ${engine.getUpdateFps().toFixed(1)}
+  gpu: ${engine.getGpuTime() !== 0 ? `${(engine.getGpuTime() / 1000).toFixed(1)}µs` : "N/A"}
   `;
 };
 
@@ -65,32 +65,32 @@ window.addEventListener("keyup", (event) => {
 // Make a rectangle that covers the entire viewport and serves as background
 createRectangle(
   world,
-  new Vec2(loop.viewportSize.x, loop.viewportSize.y),
+  new Vec2(viewportSize.x, viewportSize.y),
   new Color(120, 120, 120, 1),
-  new Vec2(loop.viewportSize.x / 2, loop.viewportSize.y / 2)
+  new Vec2(viewportSize.x / 2, viewportSize.y / 2)
 );
 
 const topBorder = createRectangle(
   world,
-  new Vec2(loop.viewportSize.x, 20),
+  new Vec2(viewportSize.x, 20),
   new Color(255, 255, 255, 1),
-  new Vec2(loop.viewportSize.x / 2, -10)
+  new Vec2(viewportSize.x / 2, -10)
 );
 world.addComponent(topBorder, Tags.Collider, null);
 
 const bottomBorder = createRectangle(
   world,
-  new Vec2(loop.viewportSize.x, 20),
+  new Vec2(viewportSize.x, 20),
   new Color(255, 255, 255, 1),
-  new Vec2(loop.viewportSize.x / 2, loop.viewportSize.y + 10)
+  new Vec2(viewportSize.x / 2, viewportSize.y + 10)
 );
 world.addComponent(bottomBorder, Tags.Collider, null);
 
 const scoreAreaLeft = createRectangle(
   world,
-  new Vec2(40, loop.viewportSize.y),
+  new Vec2(40, viewportSize.y),
   new Color(255, 255, 255, 1),
-  new Vec2(-20, loop.viewportSize.y / 2)
+  new Vec2(-20, viewportSize.y / 2)
 );
 const scoreAreaLeftComponent = new AreaComponent();
 scoreAreaLeftComponent.subscribe(AREA_EVENTS.ENTER, (_payload) => {
@@ -100,9 +100,9 @@ world.addComponent(scoreAreaLeft, AreaComponent.name, scoreAreaLeftComponent);
 
 const scoreAreaRight = createRectangle(
   world,
-  new Vec2(40, loop.viewportSize.y),
+  new Vec2(40, viewportSize.y),
   new Color(255, 255, 255, 1),
-  new Vec2(loop.viewportSize.x + 20, loop.viewportSize.y / 2)
+  new Vec2(viewportSize.x + 20, viewportSize.y / 2)
 );
 const scoreAreaRightComponent = new AreaComponent();
 scoreAreaRightComponent.subscribe(AREA_EVENTS.ENTER, (_payload) => {
@@ -114,7 +114,7 @@ const ball = createRectangle(
   world,
   new Vec2(10, 10),
   new Color(255, 255, 255, 1),
-  new Vec2(loop.viewportSize.x / 2, loop.viewportSize.y / 2)
+  new Vec2(viewportSize.x / 2, viewportSize.y / 2)
 );
 const ballTimer = new TimerComponent(1, true);
 world.addComponent(ball, TimerComponent.name, ballTimer);
@@ -124,8 +124,8 @@ world.addComponent(ball, Tags.Ball, { speed: 0, dir: new Vec2(0, 0) });
 ballTimer.subscribe(TIMER_EVENTS.TIMEOUT, () => {
   const transform = world.getComponent<TransformComponent>(ball, TransformComponent.name)!;
   const ballData = world.getComponent<BallData>(ball, Tags.Ball)!;
-  transform.position.x = loop.viewportSize.x / 2;
-  transform.position.y = randomInteger(200, loop.viewportSize.y - 200);
+  transform.position.x = viewportSize.x / 2;
+  transform.position.y = randomInteger(200, viewportSize.y - 200);
   ballData.speed = START_SPEED;
   ballData.dir = randomDirection();
 });
@@ -226,12 +226,7 @@ const ballSystem: UpdateSystem = (world, entity, deltaTimeInSeconds) => {
   }
 };
 
-const player = createRectangle(
-  world,
-  new Vec2(20, 120),
-  new Color(255, 255, 255, 1),
-  new Vec2(50, loop.viewportSize.y / 2)
-);
+const player = createRectangle(world, new Vec2(20, 120), new Color(255, 255, 255, 1), new Vec2(50, viewportSize.y / 2));
 world.addComponent(player, Tags.Player, null);
 world.addComponent(player, Tags.Collider, null);
 const playerSystem: UpdateSystem = (world: World, entity: Entity, deltaTimeInSeconds) => {
@@ -244,17 +239,14 @@ const playerSystem: UpdateSystem = (world: World, entity: Entity, deltaTimeInSec
   }
 
   const paddleHeight = transform.scale.y;
-  transform.position.y = Math.min(
-    loop.viewportSize.y - paddleHeight / 2,
-    Math.max(paddleHeight / 2, transform.position.y)
-  );
+  transform.position.y = Math.min(viewportSize.y - paddleHeight / 2, Math.max(paddleHeight / 2, transform.position.y));
 };
 
 const cpu = createRectangle(
   world,
   new Vec2(20, 120),
   new Color(255, 255, 255, 1),
-  new Vec2(loop.viewportSize.x - 50, loop.viewportSize.y / 2)
+  new Vec2(viewportSize.x - 50, viewportSize.y / 2)
 );
 world.addComponent(cpu, Tags.CPU, null);
 world.addComponent(cpu, Tags.Collider, null);
@@ -274,10 +266,7 @@ const cpuSystem: UpdateSystem = (world: World, entity: Entity, deltaTimeInSecond
   transform.position.y -= moveBy;
 
   const paddleHeight = transform.scale.y;
-  transform.position.y = Math.min(
-    loop.viewportSize.y - paddleHeight / 2,
-    Math.max(paddleHeight / 2, transform.position.y)
-  );
+  transform.position.y = Math.min(viewportSize.y - paddleHeight / 2, Math.max(paddleHeight / 2, transform.position.y));
 };
 
 // Add the update systems
@@ -291,4 +280,4 @@ world.addUpdateSystem([], performanceSystem);
 // Add the render systems
 world.addRenderSystem([TransformComponent.name, MeshComponent.name, MaterialComponent.name], renderSystem);
 
-loop.start();
+await engine.init();
