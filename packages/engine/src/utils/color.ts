@@ -15,4 +15,8 @@ export class Color {
   toFloat32Array(): Float32Array {
     return new Float32Array([this.r / 255, this.g / 255, this.b / 255, this.a]);
   }
+
+  toRGBAString(): string {
+    return `rgba(${this.r} ${this.g} ${this.b} / ${this.a})`;
+  }
 }

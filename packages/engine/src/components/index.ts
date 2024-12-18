@@ -5,3 +5,4 @@ export * from "./mesh.component";
 export * from "./timer.component";
 export * from "./transform.component";
 export * from "./velocity.component";
+export * from "./label.component";

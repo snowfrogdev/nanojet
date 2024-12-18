@@ -161,7 +161,7 @@ export class Renderer {
       },
     });
 
-    this.loadTextures();
+    await this.loadTextures();
 
     if (this.canTimestamp) {
       this.querySet = device.createQuerySet({
@@ -295,9 +295,12 @@ export class Renderer {
 
     for (const [textureId, meshMap] of this.instancesByTextureData) {
       const textureEntry =
-        textureId === "default_texture"
-          ? this.defaultTextureEntry
-          : this.textureCache.get(textureId)!;
+        textureId === "default_texture" ? this.defaultTextureEntry : this.textureCache.get(textureId)!;
+
+      if (!textureEntry) {
+        console.warn(`Texture with id ${textureId} is not loaded`);
+        continue;
+      }
 
       renderPassEncoder.setBindGroup(0, textureEntry.bindGroup);
 
@@ -320,7 +323,6 @@ export class Renderer {
         );
 
         this.device.queue.writeBuffer(instanceBuffer, 0, instanceData);
-
 
         renderPassEncoder.setVertexBuffer(0, vertexBuffer);
         renderPassEncoder.setVertexBuffer(1, instanceBuffer);
@@ -350,77 +352,59 @@ export class Renderer {
     }
   }
 
-  private loadTextures() {
-    // Load actual textures
+  private async loadTextures() {
     for (const { id, imageBitmap } of this.resourceManager.getAll("Texture") as Texture[]) {
-      const sampler = this.device.createSampler({
-        magFilter: "linear",
-        minFilter: "linear",
-      });
-
-      const texture = this.device.createTexture({
-        size: [imageBitmap.width, imageBitmap.height],
-        format: "rgba8unorm",
-        usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
-      });
-
-      this.device.queue.copyExternalImageToTexture({ source: imageBitmap }, { texture }, [
-        imageBitmap.width,
-        imageBitmap.height,
-      ]);
-
-      const textureView = texture.createView();
-
-      const bindGroup = this.device.createBindGroup({
-        layout: this.pipeline.getBindGroupLayout(0),
-        entries: [
-          {
-            binding: 0,
-            resource: sampler,
-          },
-          {
-            binding: 1,
-            resource: textureView,
-          },
-        ],
-      });
-
-      this.textureCache.set(id, { textureView, sampler, bindGroup });
+      this.loadTexture(id, imageBitmap);
     }
 
-    this.createDefaultTexture();
+    await this.createDefaultTexture();
   }
 
-  private createDefaultTexture() {
+  loadTexture(id: string, imageBitmap: ImageBitmap) {
+    const textureEntry = this.createTexture(imageBitmap);
+    this.textureCache.set(id, textureEntry);
+  }
+
+  private createTexture(imageBitmap: ImageBitmap): TextureEntry {
     const sampler = this.device.createSampler({
       magFilter: "linear",
       minFilter: "linear",
     });
 
-    const whiteTextureData = new Uint8Array([255, 255, 255, 255]); // RGBA white pixel
     const texture = this.device.createTexture({
-      size: [1, 1],
+      size: [imageBitmap.width, imageBitmap.height],
       format: "rgba8unorm",
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+      usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
     });
 
-    this.device.queue.writeTexture(
-      { texture },
-      whiteTextureData,
-      { bytesPerRow: 4 },
-      [1, 1]
-    );
+    this.device.queue.copyExternalImageToTexture({ source: imageBitmap }, { texture }, [
+      imageBitmap.width,
+      imageBitmap.height,
+    ]);
 
     const textureView = texture.createView();
 
     const bindGroup = this.device.createBindGroup({
       layout: this.pipeline.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: sampler },
-        { binding: 1, resource: textureView },
+        {
+          binding: 0,
+          resource: sampler,
+        },
+        {
+          binding: 1,
+          resource: textureView,
+        },
       ],
     });
 
-    this.defaultTextureEntry = { textureView, sampler, bindGroup };
+    return { textureView, sampler, bindGroup };
+  }
+
+  private async createDefaultTexture() {
+    const whitePixelData = new Uint8ClampedArray([255, 255, 255, 255]);
+    const imageData = new ImageData(whitePixelData, 1, 1);
+    const imageBitmap = await createImageBitmap(imageData);
+    this.defaultTextureEntry = this.createTexture(imageBitmap);
   }
 }

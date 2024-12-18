@@ -20,7 +20,10 @@ import {
   areaSystem,
   Sound,
   Engine,
-  TextureLoader, // Add this import
+  TextureLoader,
+  createLabel,
+  LabelComponent,
+  labelSystem, // Add this import
 } from "nanojet";
 
 const PADDLE_SPEED = 500;
@@ -64,12 +67,34 @@ window.addEventListener("keyup", (event) => {
   keys[event.key] = false;
 });
 
+let scores = { player: 0, cpu: 0 };
+
 // Make a rectangle that covers the entire viewport and serves as background
 createRectangle(
   world,
   new Vec2(viewportSize.x, viewportSize.y),
   new Color(120, 120, 120, 1),
-  new Vec2(viewportSize.x / 2, viewportSize.y / 2),
+  new Vec2(viewportSize.x / 2, viewportSize.y / 2)
+);
+
+const playerScore = createLabel(
+  world,
+  "0",
+  50,
+  "monospace",
+  new Color(255, 255, 255, 1),
+  new Vec2(100, 60),
+  new Vec2(viewportSize.x / 2 - 100, 30)
+);
+
+const cpuScore = createLabel(
+  world,
+  "0",
+  50,
+  "monospace",
+  new Color(255, 255, 255, 1),
+  new Vec2(100, 60),
+  new Vec2(viewportSize.x / 2 + 100, 30)
 );
 
 const topBorder = createRectangle(
@@ -96,6 +121,8 @@ const scoreAreaLeft = createRectangle(
 );
 const scoreAreaLeftComponent = new AreaComponent();
 scoreAreaLeftComponent.subscribe(AREA_EVENTS.ENTER, (_payload) => {
+  scores.cpu++;
+  world.getComponent<LabelComponent>(cpuScore, LabelComponent.name)!.text = scores.cpu.toString();
   ballTimer.start();
 });
 world.addComponent(scoreAreaLeft, AreaComponent.name, scoreAreaLeftComponent);
@@ -108,6 +135,8 @@ const scoreAreaRight = createRectangle(
 );
 const scoreAreaRightComponent = new AreaComponent();
 scoreAreaRightComponent.subscribe(AREA_EVENTS.ENTER, (_payload) => {
+  scores.player++;
+  world.getComponent<LabelComponent>(playerScore, LabelComponent.name)!.text = scores.player.toString();
   ballTimer.start();
 });
 world.addComponent(scoreAreaRight, AreaComponent.name, scoreAreaRightComponent);
@@ -280,6 +309,7 @@ world.addUpdateSystem([AreaComponent.name], areaSystem);
 world.addUpdateSystem([], performanceSystem);
 
 // Add the render systems
+world.addRenderSystem([TransformComponent.name, LabelComponent.name], labelSystem);
 world.addRenderSystem([TransformComponent.name, MeshComponent.name, MaterialComponent.name], renderSystem);
 
 await engine.init();
