@@ -19,7 +19,8 @@ import {
   AREA_EVENTS,
   areaSystem,
   Sound,
-  Engine, // Add this import
+  Engine,
+  TextureLoader, // Add this import
 } from "nanojet";
 
 const PADDLE_SPEED = 500;
@@ -39,6 +40,7 @@ enum Tags {
 const canvas = document.getElementById("gameCanvas") as HTMLCanvasElement;
 const viewportSize = new Vec2(1152, 648);
 const engine = new Engine(canvas, viewportSize);
+engine.addResourceLoader("Texture", TextureLoader);
 
 const world = engine.world;
 
@@ -67,7 +69,7 @@ createRectangle(
   world,
   new Vec2(viewportSize.x, viewportSize.y),
   new Color(120, 120, 120, 1),
-  new Vec2(viewportSize.x / 2, viewportSize.y / 2)
+  new Vec2(viewportSize.x / 2, viewportSize.y / 2),
 );
 
 const topBorder = createRectangle(

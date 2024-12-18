@@ -17,7 +17,8 @@ export function createRectangle(
   world: World,
   size = new Vec2(1, 1),
   color = new Color(255, 255, 255, 1),
-  position = new Vec2()
+  position = new Vec2(),
+  textureId?: string
 ): Entity {
   const entity = world.addEntity();
   const transform = new TransformComponent();
@@ -25,6 +26,6 @@ export function createRectangle(
   transform.position = position;
   world.addComponent(entity, TransformComponent.name, transform);
   world.addComponent(entity, MeshComponent.name, new MeshComponent("rectangle", vertexData, indexData));
-  world.addComponent(entity, MaterialComponent.name, new MaterialComponent(color));
+  world.addComponent(entity, MaterialComponent.name, new MaterialComponent(color, textureId));
   return entity;
 }

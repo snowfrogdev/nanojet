@@ -8,5 +8,5 @@ export const renderSystem: RenderSystem = (world, entity, extrapolation, rendere
   const mesh = world.getComponent<MeshComponent>(entity, MeshComponent.name)!;
   const material = world.getComponent<MaterialComponent>(entity, MaterialComponent.name)!;
 
-  renderer.queueDraw(mesh, transform.getMatrix3x3(), material.color);
+  renderer.queueDraw(mesh, transform.getMatrix3x3(), material.color, material.textureId);
 };
