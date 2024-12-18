@@ -113,6 +113,8 @@ const bottomBorder = createRectangle(
 );
 world.addComponent(bottomBorder, Tags.Collider, null);
 
+const scoreSound = new Sound([1.1, , 688, 0.01, 0.07, 0.14, 1, 2.8, , -18, , , , , , 0.1, , 0.72, 0.03, , 154]);
+
 const scoreAreaLeft = createRectangle(
   world,
   new Vec2(40, viewportSize.y),
@@ -123,6 +125,7 @@ const scoreAreaLeftComponent = new AreaComponent();
 scoreAreaLeftComponent.subscribe(AREA_EVENTS.ENTER, (_payload) => {
   scores.cpu++;
   world.getComponent<LabelComponent>(cpuScore, LabelComponent.name)!.text = scores.cpu.toString();
+  scoreSound.play();
   ballTimer.start();
 });
 world.addComponent(scoreAreaLeft, AreaComponent.name, scoreAreaLeftComponent);
@@ -137,6 +140,7 @@ const scoreAreaRightComponent = new AreaComponent();
 scoreAreaRightComponent.subscribe(AREA_EVENTS.ENTER, (_payload) => {
   scores.player++;
   world.getComponent<LabelComponent>(playerScore, LabelComponent.name)!.text = scores.player.toString();
+  scoreSound.play();
   ballTimer.start();
 });
 world.addComponent(scoreAreaRight, AreaComponent.name, scoreAreaRightComponent);
