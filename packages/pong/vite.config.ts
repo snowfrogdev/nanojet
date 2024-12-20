@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => ({
       allow: [
         // Allow serving files from the project root and engine package
         path.resolve(__dirname, "..", "engine"),
-        path.resolve(__dirname, "..", "game"),
+        path.resolve(__dirname, "..", "pong"),
       ],
     },
   },

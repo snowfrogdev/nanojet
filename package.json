@@ -7,8 +7,8 @@
   ],
   "scripts": {
     "build:engine": "npm run build --workspace=nanojet",
-    "build:game": "npm run build --workspace=game",
-    "dev": "npm run dev --workspace=game"
+    "build:pong": "npm run build --workspace=pong",
+    "dev": "npm run dev --workspace=pong"
   },
   "devDependencies": {
     "@types/node": "^22.7.6",
