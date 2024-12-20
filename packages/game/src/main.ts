@@ -23,7 +23,7 @@ import {
   TextureLoader,
   createLabel,
   LabelComponent,
-  labelSystem, // Add this import
+  labelSystem,
 } from "nanojet";
 import { Tags } from "./tags";
 import { BallData, ballSystem } from "./ball.system";

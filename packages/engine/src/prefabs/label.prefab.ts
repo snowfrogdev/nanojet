@@ -18,7 +18,7 @@ export function createLabel(
     LabelComponent.name,
     new LabelComponent(text, fontFamily, fontSize, fontColor.toRGBAString())
   );
-  const material = world.getComponent<MaterialComponent>(entity, "MaterialComponent")!;
+  const material = world.getComponent<MaterialComponent>(entity, MaterialComponent.name)!;
   material.textureId = entity.toString();
   return entity;
 }
