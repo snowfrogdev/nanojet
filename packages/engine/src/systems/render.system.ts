@@ -3,7 +3,7 @@ import { MaterialComponent } from "../components/material.component";
 import { MeshComponent } from "../components/mesh.component";
 import { RenderSystem } from "../ecs";
 
-export const renderSystem: RenderSystem = (world, entity, extrapolation, renderer) => {
+export const renderSystem: RenderSystem = (world, entity, _extrapolation, renderer) => {
   const transform = world.getComponent<TransformComponent>(entity, TransformComponent.name)!;
   const mesh = world.getComponent<MeshComponent>(entity, MeshComponent.name)!;
   const material = world.getComponent<MaterialComponent>(entity, MaterialComponent.name)!;
